@@ -7,6 +7,5 @@ return {
   "AstroNvim/astrocommunity",
   { import = "astrocommunity.pack.lua" },
   { import = "astrocommunity.quickfix.quicker-nvim" },
-  { import = "astrocommunity.recipes.vscode-icons" },
   -- import/override with your plugins folder
 }
