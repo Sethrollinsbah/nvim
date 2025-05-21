@@ -5,6 +5,16 @@ return {
     config = function()
       local dap = require "dap"
 
+      -- Helper to auto-detect binary path from Cargo.toml
+      local function get_binary_path()
+        local cargo_toml = vim.fn.readfile "Cargo.toml"
+        for _, line in ipairs(cargo_toml) do
+          local name = line:match '^name%s*=%s*"(.-)"'
+          if name then return vim.fn.getcwd() .. "/target/debug/" .. name end
+        end
+        return vim.fn.getcwd() .. "/target/debug/" -- fallback
+      end
+
       dap.adapters.codelldb = {
         type = "server",
         port = "${port}",
@@ -16,10 +26,10 @@ return {
 
       dap.configurations.rust = {
         {
-          name = "Launch",
+          name = "Launch Rust binary (auto)",
           type = "codelldb",
           request = "launch",
-          program = function() return vim.fn.input("Path to executable: ", vim.fn.getcwd() .. "/target/debug/", "file") end,
+          program = get_binary_path, -- ← no prompt anymore!
           cwd = "${workspaceFolder}",
           stopOnEntry = false,
           args = {},
