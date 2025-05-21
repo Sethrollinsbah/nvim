@@ -17,3 +17,11 @@ end
 
 require "lazy_setup"
 require "polish"
+
+-- Add this to your keymaps file or wherever you define your key mappings
+vim.keymap.set(
+  "n",
+  "<leader>fd",
+  function() require("telescope.builtin").diagnostics() end,
+  { desc = "Find diagnostics (global)" }
+)
