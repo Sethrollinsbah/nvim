@@ -1,17 +1,18 @@
 ---@type LazySpec
 return {
-  -- use mason-lspconfig to configure LSP installations
+  -- LSPs
   {
     "williamboman/mason-lspconfig.nvim",
     opts = function(_, opts)
       opts.ensure_installed = require("astrocore").list_insert_unique(opts.ensure_installed, {
         "lua_ls",
-        "tsserver",
         "rust_analyzer",
+        "ts_ls",
+        "svelte",
       })
     end,
   },
-  -- use mason-null-ls to configure Formatters/Linter installation for null-ls sources
+  -- Formatters/Linters
   {
     "jay-babu/mason-null-ls.nvim",
     opts = function(_, opts)
@@ -22,10 +23,11 @@ return {
         "rustfmt",
         "cargo-check",
         "markdownlint",
+        "svelte-check",
       })
     end,
   },
-  -- use mason-nvim-dap to configure debuggers
+  -- Debuggers
   {
     "jay-babu/mason-nvim-dap.nvim",
     opts = function(_, opts)
@@ -33,7 +35,7 @@ return {
         "python",
         "js",
         "node2",
-        "codelldb", -- Rust debugger adapter
+        "codelldb",
       })
     end,
   },
