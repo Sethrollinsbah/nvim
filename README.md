@@ -1,7 +1,8 @@
 # AstroNvim Template
 
+## .tmux.conf
+
 ```bash
-# .tmux.conf
 
 # Enable mouse support for scrolling
 
@@ -78,8 +79,9 @@ set-option -g renumber-windows on
 
 ```
 
+## .zshrc file
+
 ````bash
-# .zshrc file
 
 export ZSH="$HOME/.oh-my-zsh"
 
