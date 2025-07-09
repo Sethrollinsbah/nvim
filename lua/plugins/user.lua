@@ -1,5 +1,13 @@
 return {
 
+  {
+    "hrsh7th/nvim-cmp", -- Autocompletion engine
+    dependencies = {
+      "hrsh7th/cmp-nvim-lsp", -- Completion source for LSP
+      "L3MON4D3/LuaSnip", -- Snippets
+      "saadparwaiz1/cmp_luasnip", -- Snippet completion source
+    },
+  },
   -- customize dashboard options
   {
     "folke/snacks.nvim",
