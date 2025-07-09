@@ -51,7 +51,7 @@ return {
       },
     },
 
-    -- Mappings configuration
+    -- Global Mappings configuration
     mappings = {
       n = {
         -- Buffer navigation
@@ -68,57 +68,441 @@ return {
           desc = "Close buffer from tabline",
         },
 
-        -- Telescope mappings
+        -- Smart find with recent usage priority
         ["<leader>ff"] = {
-          function() require("telescope.builtin").find_files() end,
-          desc = "Find files",
+          function()
+            local builtin = require "telescope.builtin"
+            local themes = require "telescope.themes"
+
+            -- Smart find priority:
+            -- 1. Recent files (oldfiles) if we have history
+            -- 2. Git files if in git repo
+            -- 3. All files as fallback
+
+            -- Check if we have recent files
+            local oldfiles = vim.v.oldfiles or {}
+            local cwd = vim.fn.getcwd()
+            local recent_in_cwd = {}
+
+            -- Filter oldfiles to current working directory
+            for _, file in ipairs(oldfiles) do
+              if file:match("^" .. vim.pesc(cwd)) then table.insert(recent_in_cwd, file) end
+            end
+
+            if #recent_in_cwd > 3 then
+              -- We have recent files in this directory - prioritize them
+              builtin.oldfiles(themes.get_dropdown {
+                prompt_title = "Recent Files",
+                previewer = false,
+                layout_config = { width = 0.8, height = 0.8 },
+                cwd_only = true,
+                only_cwd = true,
+              })
+            else
+              -- Check if we're in a git repo for git files
+              local git_root = vim.fn.systemlist("git rev-parse --show-toplevel")[1]
+              if vim.v.shell_error == 0 then
+                -- In git repo: search git files
+                builtin.git_files(themes.get_dropdown {
+                  show_untracked = true,
+                  prompt_title = "Git Files",
+                  previewer = false,
+                  layout_config = { width = 0.8, height = 0.8 },
+                })
+              else
+                -- Not in git repo: search all files
+                builtin.find_files(themes.get_dropdown {
+                  hidden = true,
+                  prompt_title = "Find Files",
+                  previewer = false,
+                  layout_config = { width = 0.8, height = 0.8 },
+                  find_command = { "rg", "--files", "--hidden", "--glob", "!**/.git/*" },
+                })
+              end
+            end
+          end,
+          desc = "Smart find (Recent → Git → All files)",
         },
+
+        -- Original git/all files finder
+        ["<leader>fF"] = {
+          function()
+            local builtin = require "telescope.builtin"
+            local themes = require "telescope.themes"
+
+            -- Check if we're in a git repo
+            local git_root = vim.fn.systemlist("git rev-parse --show-toplevel")[1]
+            if vim.v.shell_error == 0 then
+              -- In git repo: search git files
+              builtin.git_files(themes.get_dropdown {
+                show_untracked = true,
+                prompt_title = "Git Files",
+                previewer = false,
+                layout_config = { width = 0.8, height = 0.8 },
+              })
+            else
+              -- Not in git repo: search all files
+              builtin.find_files(themes.get_dropdown {
+                hidden = true,
+                prompt_title = "Find Files",
+                previewer = false,
+                layout_config = { width = 0.8, height = 0.8 },
+                find_command = { "rg", "--files", "--hidden", "--glob", "!**/.git/*" },
+              })
+            end
+          end,
+          desc = "Find files (Git → All files)",
+        },
+
+        -- All files including ignored
+        ["<leader>fa"] = {
+          function()
+            require("telescope.builtin").find_files {
+              hidden = true,
+              no_ignore = true,
+              find_command = { "rg", "--files", "--hidden", "--no-ignore", "--glob", "!**/.git/*" },
+            }
+          end,
+          desc = "Find all files (including ignored)",
+        },
+
         ["<leader>fg"] = {
           function() require("telescope.builtin").live_grep() end,
           desc = "Live grep",
         },
+
         ["<leader>fb"] = {
-          function() require("telescope.builtin").buffers() end,
-          desc = "Find buffers",
+          function()
+            require("telescope.builtin").buffers {
+              prompt_title = "Recent Buffers",
+              previewer = false,
+              layout_config = { width = 0.8, height = 0.8 },
+              sort_lastused = true,
+              sort_mru = true,
+              ignore_current_buffer = true,
+              show_all_buffers = false,
+            }
+          end,
+          desc = "Find recent buffers",
         },
+
+        -- All buffers including current
+        ["<leader>fB"] = {
+          function()
+            require("telescope.builtin").buffers {
+              prompt_title = "All Buffers",
+              sort_lastused = true,
+              show_all_buffers = true,
+            }
+          end,
+          desc = "Find all buffers",
+        },
+
+        -- Ultimate smart finder - combines everything with priority
+        ["<leader>f<space>"] = {
+          function()
+            local pickers = require "telescope.pickers"
+            local finders = require "telescope.finders"
+            local conf = require("telescope.config").values
+            local actions = require "telescope.actions"
+            local action_state = require "telescope.actions.state"
+
+            -- Create a custom finder that combines recent files, git files, and buffers
+            local function smart_finder()
+              local results = {}
+
+              -- Add recent buffers (highest priority)
+              local buffers = vim.api.nvim_list_bufs()
+              for _, buf in ipairs(buffers) do
+                if vim.api.nvim_buf_is_loaded(buf) and vim.api.nvim_buf_get_name(buf) ~= "" then
+                  local name = vim.api.nvim_buf_get_name(buf)
+                  local display_name = vim.fn.fnamemodify(name, ":~:.")
+                  table.insert(results, {
+                    value = name,
+                    display = "📄 " .. display_name,
+                    ordinal = display_name,
+                    type = "buffer",
+                  })
+                end
+              end
+
+              -- Add recent files
+              local oldfiles = vim.v.oldfiles or {}
+              local cwd = vim.fn.getcwd()
+              for i, file in ipairs(oldfiles) do
+                if i > 10 then break end -- Limit to 10 recent files
+                if file:match("^" .. vim.pesc(cwd)) then
+                  local display_name = vim.fn.fnamemodify(file, ":~:.")
+                  table.insert(results, {
+                    value = file,
+                    display = "🕐 " .. display_name,
+                    ordinal = display_name,
+                    type = "recent",
+                  })
+                end
+              end
+
+              return results
+            end
+
+            pickers
+              .new({}, {
+                prompt_title = "Smart Find (Buffers + Recent)",
+                finder = finders.new_table {
+                  results = smart_finder(),
+                  entry_maker = function(entry)
+                    return {
+                      value = entry.value,
+                      display = entry.display,
+                      ordinal = entry.ordinal,
+                    }
+                  end,
+                },
+                sorter = conf.generic_sorter {},
+                previewer = false,
+                layout_config = { width = 0.8, height = 0.8 },
+                attach_mappings = function(prompt_bufnr, map)
+                  actions.select_default:replace(function()
+                    actions.close(prompt_bufnr)
+                    local selection = action_state.get_selected_entry()
+                    if selection then vim.cmd("edit " .. selection.value) end
+                  end)
+                  return true
+                end,
+              })
+              :find()
+          end,
+          desc = "Smart find (buffers + recent files)",
+        },
+
         ["<leader>fh"] = {
           function() require("telescope.builtin").help_tags() end,
           desc = "Find help",
         },
+
         ["<leader>fo"] = {
-          function() require("telescope.builtin").oldfiles() end,
-          desc = "Find old files",
+          function()
+            require("telescope.builtin").oldfiles {
+              prompt_title = "Recent Files (Global)",
+              previewer = false,
+              layout_config = { width = 0.8, height = 0.8 },
+            }
+          end,
+          desc = "Find recent files (global)",
         },
+
+        -- Recent files in current directory only
+        ["<leader>fr"] = {
+          function()
+            require("telescope.builtin").oldfiles {
+              prompt_title = "Recent Files (Current Dir)",
+              previewer = false,
+              layout_config = { width = 0.8, height = 0.8 },
+              cwd_only = true,
+              only_cwd = true,
+            }
+          end,
+          desc = "Find recent files (current directory)",
+        },
+
         ["<leader>fw"] = {
           function() require("telescope.builtin").grep_string() end,
           desc = "Find word under cursor",
         },
+
         ["<leader>fc"] = {
           function() require("telescope.builtin").commands() end,
           desc = "Find commands",
         },
+
         ["<leader>fk"] = {
           function() require("telescope.builtin").keymaps() end,
           desc = "Find keymaps",
         },
+
         ["<leader>fd"] = {
           function() require("telescope.builtin").diagnostics() end,
           desc = "Find diagnostics",
         },
+
         ["<leader>fr"] = {
           function() require("telescope.builtin").lsp_references() end,
           desc = "Find references",
         },
+
         ["<leader>fs"] = {
-          function() require("telescope.builtin").lsp_document_symbols() end,
-          desc = "Find document symbols",
-        },
-        ["<leader>fS"] = {
-          function() require("telescope.builtin").lsp_workspace_symbols() end,
-          desc = "Find workspace symbols",
+          function()
+            -- Check if any LSP client supports document symbols
+            local clients = vim.lsp.get_active_clients { bufnr = 0 }
+            local has_document_symbols = false
+
+            for _, client in pairs(clients) do
+              if client.server_capabilities.documentSymbolProvider then
+                has_document_symbols = true
+                break
+              end
+            end
+
+            if has_document_symbols then
+              require("telescope.builtin").lsp_document_symbols {
+                prompt_title = "Document Symbols",
+                show_line = true,
+                symbol_width = 50,
+                symbol_type_width = 20,
+              }
+            else
+              -- Fallback to treesitter symbols if available, then to file outline
+              local ts_ok, _ = pcall(require, "nvim-treesitter.parsers")
+              if ts_ok and require("nvim-treesitter.parsers").has_parser() then
+                require("telescope.builtin").treesitter {
+                  prompt_title = "Treesitter Symbols",
+                  show_line = true,
+                }
+              else
+                -- Final fallback to current buffer lines with symbols
+                require("telescope.builtin").current_buffer_fuzzy_find {
+                  prompt_title = "Buffer Lines",
+                  previewer = false,
+                }
+              end
+            end
+          end,
+          desc = "Find symbols (LSP/Treesitter/Lines)",
         },
 
-        -- LSP mappings
+        ["<leader>fS"] = {
+          function()
+            -- Check if any LSP client supports workspace symbols
+            local clients = vim.lsp.get_active_clients()
+            local has_workspace_symbols = false
+
+            for _, client in pairs(clients) do
+              if client.server_capabilities.workspaceSymbolProvider then
+                has_workspace_symbols = true
+                break
+              end
+            end
+
+            if has_workspace_symbols then
+              require("telescope.builtin").lsp_workspace_symbols {
+                prompt_title = "Workspace Symbols",
+                show_line = true,
+                symbol_width = 50,
+                symbol_type_width = 20,
+              }
+            else
+              -- Fallback to live grep with symbol-like patterns
+              require("telescope.builtin").live_grep {
+                prompt_title = "Search Workspace (No LSP)",
+                additional_args = function() return { "--type-add", "code:*.{rs,scala,java,py,js,ts,lua}" } end,
+              }
+            end
+          end,
+          desc = "Find workspace symbols (LSP/Grep)",
+        },
+
+        -- Add a comprehensive symbol search across all LSP clients
+        ["<leader>fsa"] = {
+          function()
+            local clients = vim.lsp.get_active_clients { bufnr = 0 }
+            local symbol_clients = {}
+
+            -- Collect all clients that support document symbols
+            for _, client in pairs(clients) do
+              if client.server_capabilities.documentSymbolProvider then table.insert(symbol_clients, client.name) end
+            end
+
+            if #symbol_clients > 0 then
+              vim.notify("LSP clients with symbols: " .. table.concat(symbol_clients, ", "), vim.log.levels.INFO)
+              require("telescope.builtin").lsp_document_symbols {
+                prompt_title = "All LSP Document Symbols",
+                show_line = true,
+                symbol_width = 50,
+                symbol_type_width = 20,
+              }
+            else
+              vim.notify("No LSP clients with document symbol support found", vim.log.levels.WARN)
+              -- Show available clients
+              local all_clients = {}
+              for _, client in pairs(clients) do
+                table.insert(all_clients, client.name)
+              end
+              if #all_clients > 0 then
+                vim.notify("Active LSP clients: " .. table.concat(all_clients, ", "), vim.log.levels.INFO)
+              end
+            end
+          end,
+          desc = "Find symbols from all LSP clients",
+        },
+
+        -- LSP info command
+        ["<leader>li"] = {
+          function()
+            local clients = vim.lsp.get_active_clients { bufnr = 0 }
+            if #clients == 0 then
+              vim.notify("No LSP clients attached to current buffer", vim.log.levels.WARN)
+              return
+            end
+
+            local info = {}
+            for _, client in pairs(clients) do
+              local capabilities = {
+                name = client.name,
+                document_symbols = client.server_capabilities.documentSymbolProvider or false,
+                workspace_symbols = client.server_capabilities.workspaceSymbolProvider or false,
+                code_actions = client.server_capabilities.codeActionProvider or false,
+                formatting = client.server_capabilities.documentFormattingProvider or false,
+                hover = client.server_capabilities.hoverProvider or false,
+                references = client.server_capabilities.referencesProvider or false,
+                rename = client.server_capabilities.renameProvider or false,
+                definition = client.server_capabilities.definitionProvider or false,
+              }
+              table.insert(info, capabilities)
+            end
+
+            -- Create a nice display
+            local lines = { "LSP Client Capabilities:", "" }
+            for _, client_info in pairs(info) do
+              table.insert(lines, "📋 " .. client_info.name .. ":")
+              table.insert(lines, "  • Document Symbols: " .. (client_info.document_symbols and "✅" or "❌"))
+              table.insert(lines, "  • Workspace Symbols: " .. (client_info.workspace_symbols and "✅" or "❌"))
+              table.insert(lines, "  • Code Actions: " .. (client_info.code_actions and "✅" or "❌"))
+              table.insert(lines, "  • Formatting: " .. (client_info.formatting and "✅" or "❌"))
+              table.insert(lines, "  • Hover: " .. (client_info.hover and "✅" or "❌"))
+              table.insert(lines, "  • References: " .. (client_info.references and "✅" or "❌"))
+              table.insert(lines, "  • Rename: " .. (client_info.rename and "✅" or "❌"))
+              table.insert(lines, "  • Definition: " .. (client_info.definition and "✅" or "❌"))
+              table.insert(lines, "")
+            end
+
+            -- Display in a floating window
+            local buf = vim.api.nvim_create_buf(false, true)
+            vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+            vim.api.nvim_buf_set_option(buf, "modifiable", false)
+            vim.api.nvim_buf_set_option(buf, "filetype", "markdown")
+
+            local width = 50
+            local height = #lines
+            local win = vim.api.nvim_open_win(buf, true, {
+              relative = "editor",
+              width = width,
+              height = height,
+              row = math.floor((vim.o.lines - height) / 2),
+              col = math.floor((vim.o.columns - width) / 2),
+              style = "minimal",
+              border = "rounded",
+              title = " LSP Info ",
+              title_pos = "center",
+            })
+
+            -- Close on escape or q
+            vim.api.nvim_buf_set_keymap(buf, "n", "q", "<cmd>close<cr>", { silent = true })
+            vim.api.nvim_buf_set_keymap(buf, "n", "<Esc>", "<cmd>close<cr>", { silent = true })
+          end,
+          desc = "Show LSP client capabilities",
+        },
+
+        -- Global LSP mappings (work for all languages)
         ["gd"] = {
           function() vim.lsp.buf.definition() end,
           desc = "Go to definition",
@@ -160,7 +544,7 @@ return {
           desc = "Next diagnostic",
         },
 
-        -- DAP mappings (general, not Scala-specific)
+        -- Global DAP mappings (work for Scala, Rust, and all languages)
         ["<leader>db"] = {
           function() require("dap").toggle_breakpoint() end,
           desc = "Toggle breakpoint",
@@ -170,8 +554,29 @@ return {
           desc = "Set conditional breakpoint",
         },
         ["<leader>dc"] = {
-          function() require("dap").continue() end,
-          desc = "Continue",
+          function()
+            local dap = require "dap"
+            local ft = vim.bo.filetype
+
+            -- Language-specific debug start logic
+            if ft == "scala" then
+              -- For Scala, try to use metals debug first
+              local metals_ok, metals = pcall(require, "metals")
+              if metals_ok then
+                metals.debug_scoped()
+              else
+                dap.continue()
+              end
+            elseif ft == "rust" then
+              -- For Rust, build first then debug
+              vim.fn.system "cargo build"
+              dap.continue()
+            else
+              -- For other languages, just continue
+              dap.continue()
+            end
+          end,
+          desc = "Start/Continue debugging",
         },
         ["<leader>dC"] = {
           function() require("dap").run_to_cursor() end,
@@ -228,6 +633,113 @@ return {
         ["<leader>dw"] = {
           function() require("dap.ui.widgets").hover() end,
           desc = "Widgets",
+        },
+
+        -- Global Test mappings (work for all languages)
+        ["<leader>tr"] = {
+          function()
+            local ft = vim.bo.filetype
+            if ft == "scala" then
+              require("metals").test_run()
+            elseif ft == "rust" then
+              vim.cmd "!cargo test"
+            else
+              vim.notify("No test runner configured for " .. ft, vim.log.levels.WARN)
+            end
+          end,
+          desc = "Run tests",
+        },
+        ["<leader>tt"] = {
+          function()
+            local ft = vim.bo.filetype
+            if ft == "scala" then
+              require("metals").test_target()
+            elseif ft == "rust" then
+              vim.cmd "!cargo test --all"
+            else
+              vim.notify("No test target configured for " .. ft, vim.log.levels.WARN)
+            end
+          end,
+          desc = "Run test target",
+        },
+        ["<leader>td"] = {
+          function()
+            local ft = vim.bo.filetype
+            if ft == "scala" then
+              require("metals").test_debug()
+            elseif ft == "rust" then
+              -- For Rust, you might want to implement test debugging
+              vim.notify("Rust test debugging not implemented", vim.log.levels.WARN)
+            else
+              vim.notify("No test debug configured for " .. ft, vim.log.levels.WARN)
+            end
+          end,
+          desc = "Debug tests",
+        },
+
+        -- Global Build/Run mappings
+        ["<leader>br"] = {
+          function()
+            local ft = vim.bo.filetype
+            if ft == "scala" then
+              require("metals").run_scoped()
+            elseif ft == "rust" then
+              vim.cmd "!cargo run"
+            else
+              vim.notify("No run command configured for " .. ft, vim.log.levels.WARN)
+            end
+          end,
+          desc = "Build and run",
+        },
+        ["<leader>bb"] = {
+          function()
+            local ft = vim.bo.filetype
+            if ft == "scala" then
+              require("metals").compile_cascade()
+            elseif ft == "rust" then
+              vim.cmd "!cargo build"
+            else
+              vim.notify("No build command configured for " .. ft, vim.log.levels.WARN)
+            end
+          end,
+          desc = "Build project",
+        },
+        ["<leader>bc"] = {
+          function()
+            local ft = vim.bo.filetype
+            if ft == "scala" then
+              vim.cmd "!sbt clean"
+            elseif ft == "rust" then
+              vim.cmd "!cargo clean"
+            else
+              vim.notify("No clean command configured for " .. ft, vim.log.levels.WARN)
+            end
+          end,
+          desc = "Clean project",
+        },
+
+        -- Language-specific but globally available commands
+        ["<leader>mc"] = {
+          function()
+            local ft = vim.bo.filetype
+            if ft == "scala" then
+              require("metals").commands()
+            else
+              vim.notify("Metals commands only available in Scala files", vim.log.levels.WARN)
+            end
+          end,
+          desc = "Metals commands (Scala)",
+        },
+        ["<leader>ma"] = {
+          function()
+            local ft = vim.bo.filetype
+            if ft == "scala" then
+              require("metals").run_doctor()
+            else
+              vim.notify("Metals doctor only available in Scala files", vim.log.levels.WARN)
+            end
+          end,
+          desc = "Metals doctor (Scala)",
         },
 
         -- Terminal mappings

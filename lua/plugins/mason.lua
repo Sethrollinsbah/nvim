@@ -1,5 +1,5 @@
 -- lua/plugins/mason.lua
--- Comprehensive Mason configuration for all languages except Scala
+-- Complete Mason configuration with fixed Rust debugger
 
 ---@type LazySpec
 return {
@@ -220,7 +220,7 @@ return {
           dap.configurations.typescript = dap.configurations.javascript
         end,
 
-        -- Rust debugger
+        -- Fixed Rust debugger
         codelldb = function()
           local dap = require "dap"
 
@@ -231,20 +231,18 @@ return {
               local cargo_toml = vim.fn.readfile(cargo_toml_path)
               for _, line in ipairs(cargo_toml) do
                 local name = line:match '^name%s*=%s*"(.-)"'
-                if name then
-                  local binary_name = name:gsub("-", "_") -- Convert kebab-case to snake_case
-                  return vim.fn.getcwd() .. "/target/debug/" .. binary_name
-                end
+                if name then return vim.fn.getcwd() .. "/target/debug/" .. name end
               end
             end
             return vim.fn.getcwd() .. "/target/debug/main" -- fallback
           end
 
+          -- Fixed adapter configuration
           dap.adapters.codelldb = {
             type = "server",
             port = "${port}",
             executable = {
-              command = vim.fn.stdpath "data" .. "/mason/packages/codelldb/extension/adapter/codelldb",
+              command = vim.fn.stdpath "data" .. "/mason/bin/codelldb",
               args = { "--port", "${port}" },
             },
           }
@@ -254,10 +252,15 @@ return {
               name = "Launch Rust binary (auto-detect)",
               type = "codelldb",
               request = "launch",
-              program = get_binary_path,
+              program = function()
+                -- Build before debugging
+                vim.fn.system "cargo build"
+                return get_binary_path()
+              end,
               cwd = "${workspaceFolder}",
               stopOnEntry = false,
               args = {},
+              runInTerminal = false,
             },
             {
               name = "Launch Rust binary (manual)",
@@ -269,24 +272,52 @@ return {
               cwd = "${workspaceFolder}",
               stopOnEntry = false,
               args = {},
+              runInTerminal = false,
             },
             {
               name = "Launch Rust binary with args",
               type = "codelldb",
               request = "launch",
-              program = get_binary_path,
+              program = function()
+                vim.fn.system "cargo build"
+                return get_binary_path()
+              end,
               cwd = "${workspaceFolder}",
               stopOnEntry = false,
               args = function()
                 local args_string = vim.fn.input "Arguments: "
                 return vim.split(args_string, " ")
               end,
+              runInTerminal = false,
             },
           }
 
           -- Also setup for C/C++
-          dap.configurations.c = dap.configurations.rust
-          dap.configurations.cpp = dap.configurations.rust
+          dap.configurations.c = {
+            {
+              name = "Launch C program",
+              type = "codelldb",
+              request = "launch",
+              program = function() return vim.fn.input("Path to executable: ", vim.fn.getcwd() .. "/", "file") end,
+              cwd = "${workspaceFolder}",
+              stopOnEntry = false,
+              args = {},
+              runInTerminal = false,
+            },
+          }
+
+          dap.configurations.cpp = {
+            {
+              name = "Launch C++ program",
+              type = "codelldb",
+              request = "launch",
+              program = function() return vim.fn.input("Path to executable: ", vim.fn.getcwd() .. "/", "file") end,
+              cwd = "${workspaceFolder}",
+              stopOnEntry = false,
+              args = {},
+              runInTerminal = false,
+            },
+          }
         end,
 
         -- Bash debugger
