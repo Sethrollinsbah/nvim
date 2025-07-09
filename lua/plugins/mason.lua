@@ -1,5 +1,9 @@
+-- lua/plugins/mason.lua
+-- Comprehensive Mason configuration for all languages except Scala
+
 ---@type LazySpec
 return {
+  -- DAP Setup - moved here to ensure proper initialization
   {
     "mfussenegger/nvim-dap",
     dependencies = {
@@ -11,45 +15,83 @@ return {
       local dap = require "dap"
       local dapui = require "dapui"
 
-      -- Setup DAP UI
-      dapui.setup()
-      require("nvim-dap-virtual-text").setup()
-
-      -- Configure Java/Scala debug adapter
-      dap.adapters.java = function(callback)
-        -- Use the java-debug-adapter from coursier
-        callback {
-          type = "server",
-          host = "127.0.0.1",
-          port = 5005,
-        }
-      end
-
-      -- Scala configurations using Java debugger
-      dap.configurations.scala = {
-        {
-          type = "java",
-          request = "attach",
-          name = "Debug Scala (Attach)",
-          hostName = "127.0.0.1",
-          port = 5005,
+      -- Setup DAP UI for non-Scala debugging
+      dapui.setup {
+        controls = {
+          element = "repl",
+          enabled = true,
         },
-        {
-          type = "java",
-          request = "launch",
-          name = "Debug Scala (Launch)",
-          mainClass = "",
-          args = "",
-          console = "integratedTerminal",
+        expand_lines = true,
+        floating = {
+          border = "single",
+          mappings = {
+            close = { "q", "<Esc>" },
+          },
+        },
+        force_buffers = true,
+        icons = { expanded = "▾", collapsed = "▸", current_frame = "*" },
+        layouts = {
+          {
+            elements = {
+              { id = "scopes", size = 0.25 },
+              { id = "breakpoints", size = 0.25 },
+              { id = "stacks", size = 0.25 },
+              { id = "watches", size = 0.25 },
+            },
+            position = "left",
+            size = 40,
+          },
+          {
+            elements = {
+              { id = "repl", size = 0.5 },
+              { id = "console", size = 0.5 },
+            },
+            position = "bottom",
+            size = 10,
+          },
+        },
+        mappings = {
+          edit = "e",
+          expand = { "<CR>", "<2-LeftMouse>" },
+          open = "o",
+          remove = "d",
+          repl = "r",
+          toggle = "t",
+        },
+        render = {
+          indent = 1,
+          max_value_lines = 100,
         },
       }
 
-      -- Auto open/close DAP UI
+      -- Setup virtual text for all languages
+      require("nvim-dap-virtual-text").setup {
+        enabled = true,
+        enabled_commands = true,
+        highlight_changed_variables = true,
+        highlight_new_as_changed = false,
+        show_stop_reason = true,
+        commented = false,
+        only_first_definition = true,
+        all_references = false,
+        clear_on_continue = false,
+        display_callback = function(variable, buf, stackframe, node, options)
+          if options.virt_text_pos == "inline" then
+            return " = " .. variable.value
+          else
+            return variable.name .. " = " .. variable.value
+          end
+        end,
+      }
+
+      -- Auto open/close DAP UI for non-Scala sessions
       dap.listeners.after.event_initialized["dapui_config"] = function() dapui.open() end
       dap.listeners.before.event_terminated["dapui_config"] = function() dapui.close() end
       dap.listeners.before.event_exited["dapui_config"] = function() dapui.close() end
     end,
   },
+
+  -- LSP Server Management
   {
     "williamboman/mason-lspconfig.nvim",
     opts = function(_, opts)
@@ -58,9 +100,15 @@ return {
         "rust_analyzer",
         "ts_ls",
         "svelte",
+        "jsonls",
+        "yamlls",
+        "pyright",
+        "bashls",
+        -- Note: metals is handled by nvim-metals, not mason
       })
     end,
   },
+
   -- Formatters/Linters
   {
     "jay-babu/mason-null-ls.nvim",
@@ -69,44 +117,70 @@ return {
         "stylua",
         "prettier",
         "eslint_d",
-        "cargo-check",
         "markdownlint",
         "svelte-check",
+        "black", -- Python formatter
+        "isort", -- Python import sorter
+        "shellcheck", -- Shell script linter
+        -- Note: Scala formatting is handled by Metals
       })
     end,
   },
-  -- Debuggers
+
+  -- Debuggers (all languages except Scala)
   {
     "jay-babu/mason-nvim-dap.nvim",
+    dependencies = { "mfussenegger/nvim-dap" },
     opts = {
       ensure_installed = {
         "python",
         "bash",
-        "node2", -- Node.js adapter
+        "node2",
         "chrome",
         "js",
+        "codelldb",
+        "cpptools",
       },
 
+      automatic_installation = true,
+
       handlers = {
+        -- Python debugger
         python = function()
           local dap = require "dap"
+
           dap.adapters.python = {
             type = "executable",
-            command = "/usr/bin/python3",
+            command = "python",
             args = { "-m", "debugpy.adapter" },
           }
+
           dap.configurations.python = {
             {
               type = "python",
               request = "launch",
               name = "Launch file",
               program = "${file}",
+              pythonPath = function() return "/usr/bin/python3" end,
+            },
+            {
+              type = "python",
+              request = "launch",
+              name = "Launch file with args",
+              program = "${file}",
+              args = function()
+                local args_string = vim.fn.input "Arguments: "
+                return vim.split(args_string, " ")
+              end,
+              pythonPath = function() return "/usr/bin/python3" end,
             },
           }
         end,
 
+        -- Node.js debugger
         node2 = function()
           local dap = require "dap"
+
           dap.adapters.node2 = {
             type = "executable",
             command = "node",
@@ -114,6 +188,7 @@ return {
               vim.fn.stdpath "data" .. "/mason/packages/node-debug2-adapter/out/src/nodeDebug.js",
             },
           }
+
           dap.configurations.javascript = {
             {
               name = "Launch file",
@@ -125,49 +200,128 @@ return {
               protocol = "inspector",
               console = "integratedTerminal",
             },
+            {
+              name = "Launch file with args",
+              type = "node2",
+              request = "launch",
+              program = "${file}",
+              cwd = vim.fn.getcwd(),
+              sourceMaps = true,
+              protocol = "inspector",
+              console = "integratedTerminal",
+              args = function()
+                local args_string = vim.fn.input "Arguments: "
+                return vim.split(args_string, " ")
+              end,
+            },
+          }
+
+          -- TypeScript configurations
+          dap.configurations.typescript = dap.configurations.javascript
+        end,
+
+        -- Rust debugger
+        codelldb = function()
+          local dap = require "dap"
+
+          -- Helper to auto-detect binary path from Cargo.toml
+          local function get_binary_path()
+            local cargo_toml_path = vim.fn.getcwd() .. "/Cargo.toml"
+            if vim.fn.filereadable(cargo_toml_path) == 1 then
+              local cargo_toml = vim.fn.readfile(cargo_toml_path)
+              for _, line in ipairs(cargo_toml) do
+                local name = line:match '^name%s*=%s*"(.-)"'
+                if name then
+                  local binary_name = name:gsub("-", "_") -- Convert kebab-case to snake_case
+                  return vim.fn.getcwd() .. "/target/debug/" .. binary_name
+                end
+              end
+            end
+            return vim.fn.getcwd() .. "/target/debug/main" -- fallback
+          end
+
+          dap.adapters.codelldb = {
+            type = "server",
+            port = "${port}",
+            executable = {
+              command = vim.fn.stdpath "data" .. "/mason/packages/codelldb/extension/adapter/codelldb",
+              args = { "--port", "${port}" },
+            },
+          }
+
+          dap.configurations.rust = {
+            {
+              name = "Launch Rust binary (auto-detect)",
+              type = "codelldb",
+              request = "launch",
+              program = get_binary_path,
+              cwd = "${workspaceFolder}",
+              stopOnEntry = false,
+              args = {},
+            },
+            {
+              name = "Launch Rust binary (manual)",
+              type = "codelldb",
+              request = "launch",
+              program = function()
+                return vim.fn.input("Path to executable: ", vim.fn.getcwd() .. "/target/debug/", "file")
+              end,
+              cwd = "${workspaceFolder}",
+              stopOnEntry = false,
+              args = {},
+            },
+            {
+              name = "Launch Rust binary with args",
+              type = "codelldb",
+              request = "launch",
+              program = get_binary_path,
+              cwd = "${workspaceFolder}",
+              stopOnEntry = false,
+              args = function()
+                local args_string = vim.fn.input "Arguments: "
+                return vim.split(args_string, " ")
+              end,
+            },
+          }
+
+          -- Also setup for C/C++
+          dap.configurations.c = dap.configurations.rust
+          dap.configurations.cpp = dap.configurations.rust
+        end,
+
+        -- Bash debugger
+        bash = function()
+          local dap = require "dap"
+
+          dap.adapters.bashdb = {
+            type = "executable",
+            command = vim.fn.stdpath "data" .. "/mason/packages/bash-debug-adapter/bash-debug-adapter",
+            name = "bashdb",
+          }
+
+          dap.configurations.sh = {
+            {
+              type = "bashdb",
+              request = "launch",
+              name = "Launch Bash script",
+              showDebugOutput = true,
+              pathBashdb = vim.fn.stdpath "data" .. "/mason/packages/bash-debug-adapter/extension/bashdb_dir/bashdb",
+              pathBashdbLib = vim.fn.stdpath "data" .. "/mason/packages/bash-debug-adapter/extension/bashdb_dir",
+              trace = true,
+              file = "${file}",
+              program = "${file}",
+              cwd = "${workspaceFolder}",
+              pathCat = "cat",
+              pathBash = "/bin/bash",
+              pathMkfifo = "mkfifo",
+              pathPkill = "pkill",
+              args = {},
+              env = {},
+              terminalKind = "integrated",
+            },
           }
         end,
       },
     },
-  },
-  {
-    "mfussenegger/nvim-dap",
-    config = function()
-      local dap = require "dap"
-
-      -- Helper to auto-detect binary path from Cargo.toml
-      local function get_binary_path()
-        local cargo_toml = vim.fn.readfile "Cargo.toml"
-        for _, line in ipairs(cargo_toml) do
-          local name = line:match '^name%s*=%s*"(.-)"'
-          if name then
-            local binary_name = name:gsub("-", "_") -- <-- Convert kebab-case to snake_case
-            return vim.fn.getcwd() .. "/target/debug/" .. binary_name
-          end
-        end
-        return vim.fn.getcwd() .. "/target/debug/" -- fallback
-      end
-
-      dap.adapters.codelldb = {
-        type = "server",
-        port = "${port}",
-        executable = {
-          command = vim.fn.stdpath "data" .. "/mason/packages/codelldb/extension/adapter/codelldb",
-          args = { "--port", "${port}" },
-        },
-      }
-
-      dap.configurations.rust = {
-        {
-          name = "Launch Rust binary (auto)",
-          type = "codelldb",
-          request = "launch",
-          program = get_binary_path,
-          cwd = "${workspaceFolder}",
-          stopOnEntry = false,
-          args = {},
-        },
-      }
-    end,
   },
 }

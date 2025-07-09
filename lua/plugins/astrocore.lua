@@ -1,7 +1,5 @@
+-- lua/plugins/astrocore.lua
 -- AstroCore provides a central place to modify mappings, vim options, autocommands, and more!
--- Configuration documentation can be found with `:h astrocore`
--- NOTE: We highly recommend setting up the Lua Language Server (`:LspInstall lua_ls`)
---       as this provides autocomplete and documentation while editing
 
 ---@type LazySpec
 return {
@@ -10,45 +8,57 @@ return {
   opts = {
     -- Configure core features of AstroNvim
     features = {
-      large_buf = { size = 1024 * 500, lines = 10000 }, -- set global limits for large files for disabling features like treesitter
-      autopairs = true, -- enable autopairs at start
-      cmp = true, -- enable completion at start
+      large_buf = { size = 1024 * 500, lines = 10000 },
+      autopairs = true,
+      cmp = true,
       diagnostics_mode = 3, -- diagnostic mode on start (0 = off, 1 = no signs/virtual text, 2 = no virtual text, 3 = on)
-      highlighturl = true, -- highlight URLs at start
-      notifications = true, -- enable notifications at start
+      highlighturl = true,
+      notifications = true,
     },
-    -- Diagnostics configuration (for vim.diagnostics.config({...})) when diagnostics are on
+
+    -- Diagnostics configuration
     diagnostics = {
       virtual_text = true,
       underline = true,
+      signs = true,
+      update_in_insert = false,
+      severity_sort = true,
     },
-    -- vim options can be configured here
-    options = {
-      opt = { -- vim.opt.<key>
-        relativenumber = true, -- sets vim.opt.relativenumber
-        number = true, -- sets vim.opt.number
-        spell = false, -- sets vim.opt.spell
-        signcolumn = "yes", -- sets vim.opt.signcolumn to yes
-        wrap = false, -- sets vim.opt.wrap
-      },
-      g = { -- vim.g.<key>
-        -- configure global vim variables (vim.g)
-        -- NOTE: `mapleader` and `maplocalleader` must be set in the AstroNvim opts or before `lazy.setup`
-        -- This can be found in the `lua/lazy_setup.lua` file
-      },
-    },
-    -- Mappings can be configured through AstroCore as well.
-    -- NOTE: keycodes follow the casing in the vimdocs. For example, `<Leader>` must be capitalized
-    mappings = {
-      -- first key is the mode
-      n = {
-        -- second key is the lefthand side of the map
 
-        -- navigate buffer tabs
+    -- vim options
+    options = {
+      opt = {
+        relativenumber = true,
+        number = true,
+        spell = false,
+        signcolumn = "yes",
+        wrap = false,
+        scrolloff = 8,
+        sidescrolloff = 8,
+        timeoutlen = 300,
+        updatetime = 250,
+        -- Better completion experience
+        completeopt = { "menu", "menuone", "noselect" },
+        -- Better search
+        ignorecase = true,
+        smartcase = true,
+        -- Better splits
+        splitbelow = true,
+        splitright = true,
+      },
+      g = {
+        -- configure global vim variables
+      },
+    },
+
+    -- Mappings configuration
+    mappings = {
+      n = {
+        -- Buffer navigation
         ["]b"] = { function() require("astrocore.buffer").nav(vim.v.count1) end, desc = "Next buffer" },
         ["[b"] = { function() require("astrocore.buffer").nav(-vim.v.count1) end, desc = "Previous buffer" },
 
-        -- mappings seen under group name "Buffer"
+        -- Buffer management
         ["<Leader>bd"] = {
           function()
             require("astroui.status.heirline").buffer_picker(
@@ -58,12 +68,206 @@ return {
           desc = "Close buffer from tabline",
         },
 
-        -- tables with just a `desc` key will be registered with which-key if it's installed
-        -- this is useful for naming menus
-        -- ["<Leader>b"] = { desc = "Buffers" },
+        -- Telescope mappings
+        ["<leader>ff"] = {
+          function() require("telescope.builtin").find_files() end,
+          desc = "Find files",
+        },
+        ["<leader>fg"] = {
+          function() require("telescope.builtin").live_grep() end,
+          desc = "Live grep",
+        },
+        ["<leader>fb"] = {
+          function() require("telescope.builtin").buffers() end,
+          desc = "Find buffers",
+        },
+        ["<leader>fh"] = {
+          function() require("telescope.builtin").help_tags() end,
+          desc = "Find help",
+        },
+        ["<leader>fo"] = {
+          function() require("telescope.builtin").oldfiles() end,
+          desc = "Find old files",
+        },
+        ["<leader>fw"] = {
+          function() require("telescope.builtin").grep_string() end,
+          desc = "Find word under cursor",
+        },
+        ["<leader>fc"] = {
+          function() require("telescope.builtin").commands() end,
+          desc = "Find commands",
+        },
+        ["<leader>fk"] = {
+          function() require("telescope.builtin").keymaps() end,
+          desc = "Find keymaps",
+        },
+        ["<leader>fd"] = {
+          function() require("telescope.builtin").diagnostics() end,
+          desc = "Find diagnostics",
+        },
+        ["<leader>fr"] = {
+          function() require("telescope.builtin").lsp_references() end,
+          desc = "Find references",
+        },
+        ["<leader>fs"] = {
+          function() require("telescope.builtin").lsp_document_symbols() end,
+          desc = "Find document symbols",
+        },
+        ["<leader>fS"] = {
+          function() require("telescope.builtin").lsp_workspace_symbols() end,
+          desc = "Find workspace symbols",
+        },
 
-        -- setting a mapping to false will disable it
-        -- ["<C-S>"] = false,
+        -- LSP mappings
+        ["gd"] = {
+          function() vim.lsp.buf.definition() end,
+          desc = "Go to definition",
+        },
+        ["gr"] = {
+          function() vim.lsp.buf.references() end,
+          desc = "Go to references",
+        },
+        ["gi"] = {
+          function() vim.lsp.buf.implementation() end,
+          desc = "Go to implementation",
+        },
+        ["gt"] = {
+          function() vim.lsp.buf.type_definition() end,
+          desc = "Go to type definition",
+        },
+        ["K"] = {
+          function() vim.lsp.buf.hover() end,
+          desc = "Hover documentation",
+        },
+        ["<leader>ca"] = {
+          function() vim.lsp.buf.code_action() end,
+          desc = "Code action",
+        },
+        ["<leader>rn"] = {
+          function() vim.lsp.buf.rename() end,
+          desc = "Rename symbol",
+        },
+        ["<leader>D"] = {
+          function() vim.diagnostic.open_float() end,
+          desc = "Show line diagnostics",
+        },
+        ["[d"] = {
+          function() vim.diagnostic.goto_prev() end,
+          desc = "Previous diagnostic",
+        },
+        ["]d"] = {
+          function() vim.diagnostic.goto_next() end,
+          desc = "Next diagnostic",
+        },
+
+        -- DAP mappings (general, not Scala-specific)
+        ["<leader>db"] = {
+          function() require("dap").toggle_breakpoint() end,
+          desc = "Toggle breakpoint",
+        },
+        ["<leader>dB"] = {
+          function() require("dap").set_breakpoint(vim.fn.input "Breakpoint condition: ") end,
+          desc = "Set conditional breakpoint",
+        },
+        ["<leader>dc"] = {
+          function() require("dap").continue() end,
+          desc = "Continue",
+        },
+        ["<leader>dC"] = {
+          function() require("dap").run_to_cursor() end,
+          desc = "Run to cursor",
+        },
+        ["<leader>dg"] = {
+          function() require("dap").goto_() end,
+          desc = "Go to line (no execute)",
+        },
+        ["<leader>di"] = {
+          function() require("dap").step_into() end,
+          desc = "Step into",
+        },
+        ["<leader>dj"] = {
+          function() require("dap").down() end,
+          desc = "Down",
+        },
+        ["<leader>dk"] = {
+          function() require("dap").up() end,
+          desc = "Up",
+        },
+        ["<leader>dl"] = {
+          function() require("dap").run_last() end,
+          desc = "Run last",
+        },
+        ["<leader>do"] = {
+          function() require("dap").step_out() end,
+          desc = "Step out",
+        },
+        ["<leader>dO"] = {
+          function() require("dap").step_over() end,
+          desc = "Step over",
+        },
+        ["<leader>dp"] = {
+          function() require("dap").pause() end,
+          desc = "Pause",
+        },
+        ["<leader>dr"] = {
+          function() require("dap").repl.toggle() end,
+          desc = "Toggle REPL",
+        },
+        ["<leader>ds"] = {
+          function() require("dap").session() end,
+          desc = "Session",
+        },
+        ["<leader>dt"] = {
+          function() require("dap").terminate() end,
+          desc = "Terminate",
+        },
+        ["<leader>du"] = {
+          function() require("dapui").toggle() end,
+          desc = "Toggle DAP UI",
+        },
+        ["<leader>dw"] = {
+          function() require("dap.ui.widgets").hover() end,
+          desc = "Widgets",
+        },
+
+        -- Terminal mappings
+        ["<leader>tf"] = {
+          function() require("toggleterm").toggle() end,
+          desc = "Toggle floating terminal",
+        },
+        ["<leader>th"] = {
+          function() require("toggleterm").toggle(vim.v.count, 15, vim.fn.getcwd(), "horizontal") end,
+          desc = "Toggle horizontal terminal",
+        },
+        ["<leader>tv"] = {
+          function() require("toggleterm").toggle(vim.v.count, vim.o.columns * 0.4, vim.fn.getcwd(), "vertical") end,
+          desc = "Toggle vertical terminal",
+        },
+      },
+
+      -- Visual mode mappings
+      v = {
+        ["<leader>ca"] = {
+          function() vim.lsp.buf.code_action() end,
+          desc = "Code action",
+        },
+      },
+
+      -- Insert mode mappings
+      i = {
+        -- Better escape
+        ["jk"] = { "<ESC>", desc = "Escape insert mode" },
+        ["kj"] = { "<ESC>", desc = "Escape insert mode" },
+      },
+
+      -- Terminal mode mappings
+      t = {
+        -- Better terminal navigation
+        ["<C-h>"] = { "<C-\\><C-N><C-w>h", desc = "Terminal left window navigation" },
+        ["<C-j>"] = { "<C-\\><C-N><C-w>j", desc = "Terminal down window navigation" },
+        ["<C-k>"] = { "<C-\\><C-N><C-w>k", desc = "Terminal up window navigation" },
+        ["<C-l>"] = { "<C-\\><C-N><C-w>l", desc = "Terminal right window navigation" },
+        ["<esc>"] = { "<C-\\><C-n>", desc = "Terminal normal mode" },
       },
     },
   },
