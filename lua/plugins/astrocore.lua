@@ -509,7 +509,7 @@ return {
           function() vim.lsp.buf.hover() end,
           desc = "Hover documentation",
         },
-        ["<leader>ca"] = {
+        ["<leader>la"] = {
           function() vim.lsp.buf.code_action() end,
           desc = "Code action",
         },
@@ -701,7 +701,7 @@ return {
 
       -- Visual mode mappings
       v = {
-        ["<leader>ca"] = {
+        ["<leader>la"] = {
           function() vim.lsp.buf.code_action() end,
           desc = "Code action",
         },

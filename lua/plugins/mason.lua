@@ -104,7 +104,6 @@ return {
         "yamlls",
         "pyright",
         "bashls",
-        -- Note: metals is handled by nvim-metals, not mason
       })
     end,
   },
