@@ -5,19 +5,18 @@
 return {
   {
     "nvim-telescope/telescope.nvim",
-    tag = "0.1.x",
-    dependencies = { 
+    dependencies = {
       "nvim-lua/plenary.nvim",
-      { 
-        "nvim-telescope/telescope-fzf-native.nvim", 
-        build = "make" 
+      {
+        "nvim-telescope/telescope-fzf-native.nvim",
+        build = "make",
       },
     },
     config = function()
-      local telescope = require("telescope")
-      local actions = require("telescope.actions")
-      
-      telescope.setup({
+      local telescope = require "telescope"
+      local actions = require "telescope.actions"
+
+      telescope.setup {
         defaults = {
           prompt_prefix = "🔍 ",
           selection_caret = "➤ ",
@@ -78,9 +77,7 @@ return {
             find_command = { "rg", "--files", "--hidden", "--glob", "!**/.git/*" },
           },
           live_grep = {
-            additional_args = function()
-              return { "--hidden" }
-            end,
+            additional_args = function() return { "--hidden" } end,
           },
           buffers = {
             show_all_buffers = true,
@@ -104,11 +101,11 @@ return {
             case_mode = "smart_case",
           },
         },
-      })
-      
+      }
+
       -- Load extensions
-      telescope.load_extension("fzf")
-      
+      telescope.load_extension "fzf"
+
       -- Key mappings - moved to AstroCore for better organization
       -- These will be defined in astrocore.lua instead
     end,

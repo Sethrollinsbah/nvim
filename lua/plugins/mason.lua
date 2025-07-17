@@ -122,12 +122,11 @@ return {
         "black", -- Python formatter
         "isort", -- Python import sorter
         "shellcheck", -- Shell script linter
-        -- Note: Scala formatting is handled by Metals
       })
     end,
   },
 
-  -- Debuggers (all languages except Scala)
+  -- Debuggers (all languages)
   {
     "jay-babu/mason-nvim-dap.nvim",
     dependencies = { "mfussenegger/nvim-dap" },

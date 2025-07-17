@@ -291,20 +291,6 @@ return {
           desc = "Find recent files (global)",
         },
 
-        -- Recent files in current directory only
-        ["<leader>fr"] = {
-          function()
-            require("telescope.builtin").oldfiles {
-              prompt_title = "Recent Files (Current Dir)",
-              previewer = false,
-              layout_config = { width = 0.8, height = 0.8 },
-              cwd_only = true,
-              only_cwd = true,
-            }
-          end,
-          desc = "Find recent files (current directory)",
-        },
-
         ["<leader>fw"] = {
           function() require("telescope.builtin").grep_string() end,
           desc = "Find word under cursor",
@@ -394,7 +380,7 @@ return {
               -- Fallback to live grep with symbol-like patterns
               require("telescope.builtin").live_grep {
                 prompt_title = "Search Workspace (No LSP)",
-                additional_args = function() return { "--type-add", "code:*.{rs,scala,java,py,js,ts,lua}" } end,
+                additional_args = function() return { "--type-add", "code:*.{rs,java,py,js,ts,lua}" } end,
               }
             end
           end,
@@ -544,7 +530,7 @@ return {
           desc = "Next diagnostic",
         },
 
-        -- Global DAP mappings (work for Scala, Rust, and all languages)
+        -- Global DAP mappings (work for all languages)
         ["<leader>db"] = {
           function() require("dap").toggle_breakpoint() end,
           desc = "Toggle breakpoint",
@@ -559,15 +545,7 @@ return {
             local ft = vim.bo.filetype
 
             -- Language-specific debug start logic
-            if ft == "scala" then
-              -- For Scala, try to use metals debug first
-              local metals_ok, metals = pcall(require, "metals")
-              if metals_ok then
-                metals.debug_scoped()
-              else
-                dap.continue()
-              end
-            elseif ft == "rust" then
+            if ft == "rust" then
               -- For Rust, build first then debug
               vim.fn.system "cargo build"
               dap.continue()
@@ -639,9 +617,7 @@ return {
         ["<leader>tr"] = {
           function()
             local ft = vim.bo.filetype
-            if ft == "scala" then
-              require("metals").test_run()
-            elseif ft == "rust" then
+            if ft == "rust" then
               vim.cmd "!cargo test"
             else
               vim.notify("No test runner configured for " .. ft, vim.log.levels.WARN)
@@ -652,9 +628,7 @@ return {
         ["<leader>tt"] = {
           function()
             local ft = vim.bo.filetype
-            if ft == "scala" then
-              require("metals").test_target()
-            elseif ft == "rust" then
+            if ft == "rust" then
               vim.cmd "!cargo test --all"
             else
               vim.notify("No test target configured for " .. ft, vim.log.levels.WARN)
@@ -665,9 +639,7 @@ return {
         ["<leader>td"] = {
           function()
             local ft = vim.bo.filetype
-            if ft == "scala" then
-              require("metals").test_debug()
-            elseif ft == "rust" then
+            if ft == "rust" then
               -- For Rust, you might want to implement test debugging
               vim.notify("Rust test debugging not implemented", vim.log.levels.WARN)
             else
@@ -681,9 +653,7 @@ return {
         ["<leader>br"] = {
           function()
             local ft = vim.bo.filetype
-            if ft == "scala" then
-              require("metals").run_scoped()
-            elseif ft == "rust" then
+            if ft == "rust" then
               vim.cmd "!cargo run"
             else
               vim.notify("No run command configured for " .. ft, vim.log.levels.WARN)
@@ -694,9 +664,7 @@ return {
         ["<leader>bb"] = {
           function()
             local ft = vim.bo.filetype
-            if ft == "scala" then
-              require("metals").compile_cascade()
-            elseif ft == "rust" then
+            if ft == "rust" then
               vim.cmd "!cargo build"
             else
               vim.notify("No build command configured for " .. ft, vim.log.levels.WARN)
@@ -707,39 +675,13 @@ return {
         ["<leader>bc"] = {
           function()
             local ft = vim.bo.filetype
-            if ft == "scala" then
-              vim.cmd "!sbt clean"
-            elseif ft == "rust" then
+            if ft == "rust" then
               vim.cmd "!cargo clean"
             else
               vim.notify("No clean command configured for " .. ft, vim.log.levels.WARN)
             end
           end,
           desc = "Clean project",
-        },
-
-        -- Language-specific but globally available commands
-        ["<leader>mc"] = {
-          function()
-            local ft = vim.bo.filetype
-            if ft == "scala" then
-              require("metals").commands()
-            else
-              vim.notify("Metals commands only available in Scala files", vim.log.levels.WARN)
-            end
-          end,
-          desc = "Metals commands (Scala)",
-        },
-        ["<leader>ma"] = {
-          function()
-            local ft = vim.bo.filetype
-            if ft == "scala" then
-              require("metals").run_doctor()
-            else
-              vim.notify("Metals doctor only available in Scala files", vim.log.levels.WARN)
-            end
-          end,
-          desc = "Metals doctor (Scala)",
         },
 
         -- Terminal mappings
