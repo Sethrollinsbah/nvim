@@ -34,7 +34,10 @@ return {
       local config = load_lang_config(lang)
       if config.servers then
         for server, opts in pairs(config.servers) do
-          lang_configs[server] = opts
+          -- EXCLUDE rust_analyzer since rustaceanvim handles it
+          if server ~= "rust_analyzer" then
+            lang_configs[server] = opts
+          end
         end
       end
     end
@@ -78,12 +81,23 @@ return {
       },
 
       -- enable servers that you already have installed without mason
+      --       -- enable servers that you already have installed without mason
       servers = {
-        -- Add any servers you want to enable here
+        -- Explicitly disable rust_analyzer (extra safety)
+        rust_analyzer = false,
       },
 
-      -- Use the loaded language configurations
+      -- Use the loaded language configurations (excluding rust_analyzer)
       config = lang_configs,
+
+      -- Setup handlers to explicitly prevent rust_analyzer from starting
+      setup_handlers = {
+        -- Prevent rust_analyzer from being set up by astrolsp
+        rust_analyzer = function(server_name, opts)
+          -- Do nothing - let rustaceanvim handle it
+          vim.notify("Skipping rust_analyzer setup (handled by rustaceanvim)", vim.log.levels.INFO)
+        end,
+      },
 
       -- Configure buffer local auto commands to add when attaching a language server
       autocmds = {
@@ -127,13 +141,24 @@ return {
 
       -- General on_attach for all servers
       on_attach = function(client, bufnr)
+        -- Skip rust_analyzer if it somehow gets through (extra safety)
+        if client.name == "rust_analyzer" then
+          vim.notify("Stopping duplicate rust_analyzer instance", vim.log.levels.WARN)
+          client.stop()
+          return
+        end
+
         -- General LSP on_attach logic
         if client.supports_method "textDocument/codeLens" then vim.lsp.codelens.refresh { bufnr = bufnr } end
 
-        -- Load language-specific on_attach if available
+        -- Load language-specific on_attach if available (excluding rust)
         for _, lang in ipairs(languages) do
-          local config = load_lang_config(lang)
-          if config.on_attach and type(config.on_attach) == "function" then config.on_attach(client, bufnr) end
+          if lang ~= "rust" then -- Skip rust on_attach since rustaceanvim handles it
+            local config = load_lang_config(lang)
+            if config.on_attach and type(config.on_attach) == "function" then 
+              config.on_attach(client, bufnr) 
+            end
+          end
         end
       end,
     }

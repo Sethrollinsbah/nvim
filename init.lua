@@ -21,4 +21,4 @@ end
 require "lazy_setup"
 require "polish"
 
--- vim.opt.swapfile = false
+vim.opt.swapfile = false

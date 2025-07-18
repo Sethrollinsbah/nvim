@@ -1,0 +1,49 @@
+# LazyGit Configuration to fix crashes
+gui:
+  windowSize: 'normal'
+  theme:
+    lightTheme: false
+  scrollHeight: 2
+  scrollPastBottom: true
+
+git:
+  paging:
+    colorArg: always
+    pager: ""  # Disable pager to prevent crashes
+    useConfig: false
+  
+  log:
+    order: "topo-order"
+    showGraph: "always"
+    showWholeGraph: false
+  
+  commit:
+    signOff: false
+
+# Keybindings - clarify what each does
+keybinding:
+  universal:
+    quit: 'q'
+    return: '<esc>'
+    togglePanel: '<tab>'
+    prevItem: 'k'
+    nextItem: 'j'
+    refresh: 'R'
+  
+  files:
+    commitChanges: 'c'
+    commitChangesWithoutHook: 'C'
+    stageAll: 'a'
+    ignoreFile: 'i'
+    refreshFiles: 'r'
+    
+  commits:
+    squashDown: 's'
+    renameCommit: 'r'
+    renameCommitWithEditor: 'R'
+    viewResetOptions: 'g'
+
+os:
+  editPreset: 'nvim'
+  edit: 'nvim {{filename}}'
+  editAtLine: 'nvim +{{line}} {{filename}}'

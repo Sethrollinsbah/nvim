@@ -136,8 +136,8 @@ return {
         nowait = true,
       },
       mappings = {
-        ["<space>"] = { 
-          "toggle_node", 
+        ["<space>"] = {
+          "toggle_node",
           nowait = false,
         },
         ["<2-LeftMouse>"] = "open",
@@ -151,7 +151,7 @@ return {
         ["w"] = "open_with_window_picker",
         ["C"] = "close_node",
         ["z"] = "close_all_nodes",
-        ["a"] = { 
+        ["a"] = {
           "add",
           config = {
             show_path = "none",
@@ -215,7 +215,7 @@ return {
         },
       },
       follow_current_file = {
-        enabled = false,
+        enabled = true,
         leave_dirs_open = false,
       },
       group_empty_dirs = false,

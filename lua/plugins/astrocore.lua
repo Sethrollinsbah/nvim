@@ -1,5 +1,5 @@
 -- lua/plugins/astrocore.lua
--- AstroCore provides a central place to modify mappings, vim options, autocommands, and more!
+-- Enhanced AstroCore provides a central place to modify mappings, vim options, autocommands, and more!
 
 ---@type LazySpec
 return {
@@ -51,7 +51,79 @@ return {
       },
     },
 
-    -- Global Mappings configuration
+    -- Enhanced autocommands for workspace detection
+    autocmds = {
+      -- Rust workspace detection
+      rust_workspace = {
+        {
+          event = { "BufEnter", "BufWinEnter" },
+          pattern = "*.rs",
+          callback = function()
+            -- Auto-detect workspace and set appropriate settings
+            local workspace_root = vim.fn.getcwd()
+            local cargo_toml = workspace_root .. "/Cargo.toml"
+            
+            if vim.fn.filereadable(cargo_toml) == 1 then
+              local content = vim.fn.readfile(cargo_toml)
+              local is_workspace = false
+              
+              for _, line in ipairs(content) do
+                if line:match("^%[workspace%]") then
+                  is_workspace = true
+                  break
+                end
+              end
+              
+              if is_workspace then
+                -- Set workspace-specific options
+                vim.opt_local.path:append(workspace_root .. "/*/src")
+                vim.opt_local.suffixesadd:append(".rs")
+                
+                -- Set a buffer variable to track workspace status
+                vim.b.rust_workspace = true
+                
+                -- Show workspace notification (only once per session)
+                if not vim.g.rust_workspace_notified then
+                  vim.notify("🦀 Rust workspace detected", vim.log.levels.INFO)
+                  vim.g.rust_workspace_notified = true
+                end
+              end
+            end
+          end,
+        },
+      },
+      
+      -- Move workspace detection
+      move_workspace = {
+        {
+          event = { "BufEnter", "BufWinEnter" },
+          pattern = "*.move",
+          callback = function()
+            local move_root = vim.fn.getcwd()
+            local move_toml = move_root .. "/Move.toml"
+            local sui_toml = move_root .. "/Sui.toml"
+            
+            if vim.fn.filereadable(move_toml) == 1 or vim.fn.filereadable(sui_toml) == 1 then
+              -- Set workspace-specific options
+              vim.opt_local.path:append(move_root .. "/sources")
+              vim.opt_local.path:append(move_root .. "/*/sources")
+              vim.opt_local.suffixesadd:append(".move")
+              
+              -- Set a buffer variable to track workspace status
+              vim.b.move_workspace = true
+              
+              -- Show workspace notification (only once per session)
+              if not vim.g.move_workspace_notified then
+                vim.notify("🏗️ Move project detected", vim.log.levels.INFO)
+                vim.g.move_workspace_notified = true
+              end
+            end
+          end,
+        },
+      },
+    },
+
+    -- Enhanced Global Mappings configuration
     mappings = {
       n = {
         -- Buffer navigation
@@ -68,6 +140,8 @@ return {
           desc = "Close buffer from tabline",
         },
 
+        -- ======= ENHANCED TELESCOPE MAPPINGS =======
+        
         -- Smart find with recent usage priority
         ["<leader>ff"] = {
           function()
@@ -275,6 +349,57 @@ return {
           desc = "Smart find (buffers + recent files)",
         },
 
+        -- ======= WORKSPACE-SPECIFIC TELESCOPE MAPPINGS =======
+        
+        -- Workspace-specific telescope pickers
+        ["<leader>fwr"] = {
+          function()
+            require('telescope.builtin').find_files({
+              prompt_title = "Workspace Rust Files",
+              search_dirs = {vim.fn.getcwd()},
+              find_command = {"rg", "--files", "--type", "rust"},
+            })
+          end,
+          desc = "Find Rust files in workspace",
+        },
+        
+        ["<leader>fwc"] = {
+          function()
+            require('telescope.builtin').find_files({
+              prompt_title = "Workspace Cargo Files",
+              search_dirs = {vim.fn.getcwd()},
+              find_command = {"find", ".", "-name", "Cargo.toml", "-type", "f"},
+            })
+          end,
+          desc = "Find Cargo.toml files",
+        },
+        
+        ["<leader>fwt"] = {
+          function()
+            require('telescope.builtin').live_grep({
+              prompt_title = "Search Tests in Workspace",
+              search_dirs = {vim.fn.getcwd()},
+              default_text = "#[test]",
+              additional_args = {"--type", "rust"},
+            })
+          end,
+          desc = "Find tests in workspace",
+        },
+        
+        ["<leader>fwm"] = {
+          function()
+            require('telescope.builtin').live_grep({
+              prompt_title = "Search Macros in Workspace",
+              search_dirs = {vim.fn.getcwd()},
+              default_text = "macro_rules!",
+              additional_args = {"--type", "rust"},
+            })
+          end,
+          desc = "Find macros in workspace",
+        },
+
+        -- ======= ADDITIONAL TELESCOPE MAPPINGS =======
+        
         ["<leader>fh"] = {
           function() require("telescope.builtin").help_tags() end,
           desc = "Find help",
@@ -421,6 +546,202 @@ return {
           desc = "Find symbols from all LSP clients",
         },
 
+        -- ======= WORKSPACE NAVIGATION MAPPINGS =======
+        
+        -- Quick workspace navigation
+        ["<leader>wn"] = {
+          function()
+            -- Navigate to next package in workspace
+            local current_dir = vim.fn.expand("%:p:h")
+            local workspace_root = vim.fn.getcwd()
+            local cargo_toml = workspace_root .. "/Cargo.toml"
+            
+            if vim.fn.filereadable(cargo_toml) == 1 then
+              local content = vim.fn.readfile(cargo_toml)
+              local members = {}
+              local in_workspace = false
+              
+              for _, line in ipairs(content) do
+                if line:match("^%[workspace%]") then
+                  in_workspace = true
+                elseif in_workspace and line:match("^members") then
+                  local members_line = line:gsub("members%s*=%s*%[", ""):gsub("%]", "")
+                  for member in members_line:gmatch('"([^"]*)"') do
+                    table.insert(members, workspace_root .. "/" .. member)
+                  end
+                elseif in_workspace and line:match("^%[") and not line:match("^%[workspace") then
+                  break
+                end
+              end
+              
+              if #members > 0 then
+                -- Find current package index
+                local current_idx = 1
+                for i, member in ipairs(members) do
+                  if current_dir:match("^" .. vim.pesc(member)) then
+                    current_idx = i
+                    break
+                  end
+                end
+                
+                -- Navigate to next package
+                local next_idx = (current_idx % #members) + 1
+                local next_member = members[next_idx]
+                local src_path = next_member .. "/src"
+                
+                if vim.fn.isdirectory(src_path) == 1 then
+                  local main_file = src_path .. "/main.rs"
+                  local lib_file = src_path .. "/lib.rs"
+                  
+                  if vim.fn.filereadable(main_file) == 1 then
+                    vim.cmd("edit " .. main_file)
+                  elseif vim.fn.filereadable(lib_file) == 1 then
+                    vim.cmd("edit " .. lib_file)
+                  else
+                    vim.cmd("edit " .. src_path)
+                  end
+                end
+              end
+            end
+          end,
+          desc = "Navigate to next workspace package",
+        },
+        
+        ["<leader>wp"] = {
+          function()
+            -- Navigate to previous package in workspace
+            local current_dir = vim.fn.expand("%:p:h")
+            local workspace_root = vim.fn.getcwd()
+            local cargo_toml = workspace_root .. "/Cargo.toml"
+            
+            if vim.fn.filereadable(cargo_toml) == 1 then
+              local content = vim.fn.readfile(cargo_toml)
+              local members = {}
+              local in_workspace = false
+              
+              for _, line in ipairs(content) do
+                if line:match("^%[workspace%]") then
+                  in_workspace = true
+                elseif in_workspace and line:match("^members") then
+                  local members_line = line:gsub("members%s*=%s*%[", ""):gsub("%]", "")
+                  for member in members_line:gmatch('"([^"]*)"') do
+                    table.insert(members, workspace_root .. "/" .. member)
+                  end
+                elseif in_workspace and line:match("^%[") and not line:match("^%[workspace") then
+                  break
+                end
+              end
+              
+              if #members > 0 then
+                -- Find current package index
+                local current_idx = 1
+                for i, member in ipairs(members) do
+                  if current_dir:match("^" .. vim.pesc(member)) then
+                    current_idx = i
+                    break
+                  end
+                end
+                
+                -- Navigate to previous package
+                local prev_idx = current_idx == 1 and #members or current_idx - 1
+                local prev_member = members[prev_idx]
+                local src_path = prev_member .. "/src"
+                
+                if vim.fn.isdirectory(src_path) == 1 then
+                  local main_file = src_path .. "/main.rs"
+                  local lib_file = src_path .. "/lib.rs"
+                  
+                  if vim.fn.filereadable(main_file) == 1 then
+                    vim.cmd("edit " .. main_file)
+                  elseif vim.fn.filereadable(lib_file) == 1 then
+                    vim.cmd("edit " .. lib_file)
+                  else
+                    vim.cmd("edit " .. src_path)
+                  end
+                end
+              end
+            end
+          end,
+          desc = "Navigate to previous workspace package",
+        },
+        
+        -- Workspace overview
+        ["<leader>wo"] = {
+          function()
+            local workspace_root = vim.fn.getcwd()
+            local cargo_toml = workspace_root .. "/Cargo.toml"
+            
+            if vim.fn.filereadable(cargo_toml) == 1 then
+              local content = vim.fn.readfile(cargo_toml)
+              local members = {}
+              local in_workspace = false
+              local lines = {"📦 Cargo Workspace Overview", ""}
+              
+              for _, line in ipairs(content) do
+                if line:match("^%[workspace%]") then
+                  in_workspace = true
+                elseif in_workspace and line:match("^members") then
+                  local members_line = line:gsub("members%s*=%s*%[", ""):gsub("%]", "")
+                  for member in members_line:gmatch('"([^"]*)"') do
+                    table.insert(members, member)
+                  end
+                elseif in_workspace and line:match("^%[") and not line:match("^%[workspace") then
+                  break
+                end
+              end
+              
+              if #members > 0 then
+                table.insert(lines, "📁 Workspace Members:")
+                for _, member in ipairs(members) do
+                  local member_cargo = workspace_root .. "/" .. member .. "/Cargo.toml"
+                  if vim.fn.filereadable(member_cargo) == 1 then
+                    local member_content = vim.fn.readfile(member_cargo)
+                    local package_name = ""
+                    for _, m_line in ipairs(member_content) do
+                      local name = m_line:match('^name%s*=%s*"(.-)"')
+                      if name then
+                        package_name = name
+                        break
+                      end
+                    end
+                    table.insert(lines, "  • " .. member .. " (" .. package_name .. ")")
+                  else
+                    table.insert(lines, "  • " .. member)
+                  end
+                end
+              else
+                table.insert(lines, "Single package project")
+              end
+              
+              -- Create floating window
+              local buf = vim.api.nvim_create_buf(false, true)
+              vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+              vim.api.nvim_buf_set_option(buf, "modifiable", false)
+              vim.api.nvim_buf_set_option(buf, "filetype", "markdown")
+              
+              local width = 60
+              local height = #lines + 2
+              local win = vim.api.nvim_open_win(buf, true, {
+                relative = "editor",
+                width = width,
+                height = height,
+                row = math.floor((vim.o.lines - height) / 2),
+                col = math.floor((vim.o.columns - width) / 2),
+                style = "minimal",
+                border = "rounded",
+                title = " Workspace Overview ",
+                title_pos = "center",
+              })
+              
+              vim.api.nvim_buf_set_keymap(buf, "n", "q", "<cmd>close<cr>", { silent = true })
+              vim.api.nvim_buf_set_keymap(buf, "n", "<Esc>", "<cmd>close<cr>", { silent = true })
+            end
+          end,
+          desc = "Show workspace overview",
+        },
+
+        -- ======= LSP MAPPINGS =======
+        
         -- LSP info command
         ["<leader>li"] = {
           function()
@@ -530,6 +851,8 @@ return {
           desc = "Next diagnostic",
         },
 
+        -- ======= DAP MAPPINGS =======
+        
         -- Global DAP mappings (work for all languages)
         ["<leader>db"] = {
           function() require("dap").toggle_breakpoint() end,
@@ -613,12 +936,36 @@ return {
           desc = "Widgets",
         },
 
+        -- ======= TEST MAPPINGS =======
+        
         -- Global Test mappings (work for all languages)
         ["<leader>tr"] = {
           function()
             local ft = vim.bo.filetype
             if ft == "rust" then
-              vim.cmd "!cargo test"
+              -- Check if we're in a workspace
+              local workspace_root = vim.fn.getcwd()
+              local cargo_toml = workspace_root .. "/Cargo.toml"
+              
+              if vim.fn.filereadable(cargo_toml) == 1 then
+                local content = vim.fn.readfile(cargo_toml)
+                local is_workspace = false
+                
+                for _, line in ipairs(content) do
+                  if line:match("^%[workspace%]") then
+                    is_workspace = true
+                    break
+                  end
+                end
+                
+                if is_workspace then
+                  vim.cmd("!cargo test --workspace")
+                else
+                  vim.cmd("!cargo test")
+                end
+              else
+                vim.cmd("!cargo test")
+              end
             else
               vim.notify("No test runner configured for " .. ft, vim.log.levels.WARN)
             end
@@ -629,19 +976,18 @@ return {
           function()
             local ft = vim.bo.filetype
             if ft == "rust" then
-              vim.cmd "!cargo test --all"
+              vim.cmd("!cargo test --all")
             else
               vim.notify("No test target configured for " .. ft, vim.log.levels.WARN)
             end
           end,
-          desc = "Run test target",
+          desc = "Run all tests",
         },
         ["<leader>td"] = {
           function()
             local ft = vim.bo.filetype
             if ft == "rust" then
-              -- For Rust, you might want to implement test debugging
-              vim.notify("Rust test debugging not implemented", vim.log.levels.WARN)
+              vim.notify("Rust test debugging - use DAP with test binary", vim.log.levels.INFO)
             else
               vim.notify("No test debug configured for " .. ft, vim.log.levels.WARN)
             end
@@ -649,12 +995,42 @@ return {
           desc = "Debug tests",
         },
 
-        -- Global Build/Run mappings
+        -- ======= BUILD/RUN MAPPINGS =======
+        
+        -- Global Build/Run mappings with workspace awareness
         ["<leader>br"] = {
           function()
             local ft = vim.bo.filetype
             if ft == "rust" then
-              vim.cmd "!cargo run"
+              -- Check if we're in a workspace
+              local workspace_root = vim.fn.getcwd()
+              local cargo_toml = workspace_root .. "/Cargo.toml"
+              
+              if vim.fn.filereadable(cargo_toml) == 1 then
+                local content = vim.fn.readfile(cargo_toml)
+                local is_workspace = false
+                
+                for _, line in ipairs(content) do
+                  if line:match("^%[workspace%]") then
+                    is_workspace = true
+                    break
+                  end
+                end
+                
+                if is_workspace then
+                  -- In workspace, ask which package to run
+                  local package_name = vim.fn.input("Package name (or Enter for default): ")
+                  if package_name ~= "" then
+                    vim.cmd("!cargo run -p " .. package_name)
+                  else
+                    vim.cmd("!cargo run")
+                  end
+                else
+                  vim.cmd("!cargo run")
+                end
+              else
+                vim.cmd("!cargo run")
+              end
             else
               vim.notify("No run command configured for " .. ft, vim.log.levels.WARN)
             end
@@ -665,7 +1041,29 @@ return {
           function()
             local ft = vim.bo.filetype
             if ft == "rust" then
-              vim.cmd "!cargo build"
+              -- Check if we're in a workspace
+              local workspace_root = vim.fn.getcwd()
+              local cargo_toml = workspace_root .. "/Cargo.toml"
+              
+              if vim.fn.filereadable(cargo_toml) == 1 then
+                local content = vim.fn.readfile(cargo_toml)
+                local is_workspace = false
+                
+                for _, line in ipairs(content) do
+                  if line:match("^%[workspace%]") then
+                    is_workspace = true
+                    break
+                  end
+                end
+                
+                if is_workspace then
+                  vim.cmd("!cargo build --workspace")
+                else
+                  vim.cmd("!cargo build")
+                end
+              else
+                vim.cmd("!cargo build")
+              end
             else
               vim.notify("No build command configured for " .. ft, vim.log.levels.WARN)
             end
@@ -676,7 +1074,29 @@ return {
           function()
             local ft = vim.bo.filetype
             if ft == "rust" then
-              vim.cmd "!cargo clean"
+              -- Check if we're in a workspace
+              local workspace_root = vim.fn.getcwd()
+              local cargo_toml = workspace_root .. "/Cargo.toml"
+              
+              if vim.fn.filereadable(cargo_toml) == 1 then
+                local content = vim.fn.readfile(cargo_toml)
+                local is_workspace = false
+                
+                for _, line in ipairs(content) do
+                  if line:match("^%[workspace%]") then
+                    is_workspace = true
+                    break
+                  end
+                end
+                
+                if is_workspace then
+                  vim.cmd("!cargo clean --workspace")
+                else
+                  vim.cmd("!cargo clean")
+                end
+              else
+                vim.cmd("!cargo clean")
+              end
             else
               vim.notify("No clean command configured for " .. ft, vim.log.levels.WARN)
             end
@@ -684,6 +1104,8 @@ return {
           desc = "Clean project",
         },
 
+        -- ======= TERMINAL MAPPINGS =======
+        
         -- Terminal mappings
         ["<leader>tf"] = {
           function() require("toggleterm").toggle() end,
@@ -697,23 +1119,82 @@ return {
           function() require("toggleterm").toggle(vim.v.count, vim.o.columns * 0.4, vim.fn.getcwd(), "vertical") end,
           desc = "Toggle vertical terminal",
         },
+
+        -- ======= ADDITIONAL UTILITY MAPPINGS =======
+        
+        -- Quick config editing
+        ["<leader>ve"] = {
+          function() vim.cmd("edit " .. vim.fn.stdpath("config") .. "/init.lua") end,
+          desc = "Edit init.lua",
+        },
+        ["<leader>vr"] = {
+          function() vim.cmd("source " .. vim.fn.stdpath("config") .. "/init.lua") end,
+          desc = "Reload config",
+        },
+        
+        -- Quick save
+        ["<leader>w"] = {
+          function() vim.cmd("write") end,
+          desc = "Save file",
+        },
+        
+        -- Clear search highlighting
+        ["<leader>nh"] = {
+          function() vim.cmd("nohlsearch") end,
+          desc = "Clear search highlights",
+        },
+        
+        -- Toggle wrap
+        ["<leader>uw"] = {
+          function() 
+            vim.opt_local.wrap = not vim.opt_local.wrap:get()
+            vim.notify("Wrap " .. (vim.opt_local.wrap:get() and "enabled" or "disabled"))
+          end,
+          desc = "Toggle wrap",
+        },
+        
+        -- Toggle relative numbers
+        ["<leader>un"] = {
+          function() 
+            vim.opt_local.relativenumber = not vim.opt_local.relativenumber:get()
+            vim.notify("Relative numbers " .. (vim.opt_local.relativenumber:get() and "enabled" or "disabled"))
+          end,
+          desc = "Toggle relative numbers",
+        },
       },
 
+      -- ======= VISUAL MODE MAPPINGS =======
+      
       -- Visual mode mappings
       v = {
         ["<leader>la"] = {
           function() vim.lsp.buf.code_action() end,
           desc = "Code action",
         },
+        
+        -- Better indenting
+        ["<"] = { "<gv", desc = "Indent left" },
+        [">"] = { ">gv", desc = "Indent right" },
+        
+        -- Move selected lines
+        ["J"] = { ":m '>+1<CR>gv=gv", desc = "Move selection down" },
+        ["K"] = { ":m '<-2<CR>gv=gv", desc = "Move selection up" },
       },
 
+      -- ======= INSERT MODE MAPPINGS =======
+      
       -- Insert mode mappings
       i = {
         -- Better escape
         ["jk"] = { "<ESC>", desc = "Escape insert mode" },
         ["kj"] = { "<ESC>", desc = "Escape insert mode" },
+        
+        -- Save in insert mode
+        ["<C-s>"] = { "<cmd>w<cr><ESC>", desc = "Save file" },
       },
 
+      -- ======= TERMINAL MODE MAPPINGS =======
+      
       -- Terminal mode mappings
       t = {
         -- Better terminal navigation
@@ -722,6 +1203,10 @@ return {
         ["<C-k>"] = { "<C-\\><C-N><C-w>k", desc = "Terminal up window navigation" },
         ["<C-l>"] = { "<C-\\><C-N><C-w>l", desc = "Terminal right window navigation" },
         ["<esc>"] = { "<C-\\><C-n>", desc = "Terminal normal mode" },
+        
+        -- Better escape for terminal
+        ["jk"] = { "<C-\\><C-n>", desc = "Terminal normal mode" },
+        ["kj"] = { "<C-\\><C-n>", desc = "Terminal normal mode" },
       },
     },
   },

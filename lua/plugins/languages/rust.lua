@@ -64,6 +64,12 @@ return {
 
   -- Rust-specific on_attach
   on_attach = function(client, bufnr)
+        if client.name == "rust_analyzer" and not client.config.cmd then
+      -- This is the standard rust-analyzer, disable it
+      client.stop()
+      return
+    end
+
     if client.name == "rust_analyzer" then
       -- Enable inlay hints for Rust
       if client.server_capabilities.inlayHintProvider then vim.lsp.inlay_hint.enable(bufnr, true) end
