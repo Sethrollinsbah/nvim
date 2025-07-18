@@ -315,6 +315,341 @@ return {
 -- Add these mappings to your astrocore.lua mappings.n section
 -- These provide comprehensive workspace-aware search capabilities
 
+        -- Add these mappings to your astrocore.lua for comprehensive cargo commands
+
+-- ======= BASIC CARGO COMMANDS =======
+
+-- Cargo check (basic)
+["<leader>cc"] = {
+  function()
+    vim.cmd("!cargo check")
+  end,
+  desc = "Cargo check",
+},
+
+-- Cargo check with workspace awareness
+["<leader>cC"] = {
+  function()
+    local workspace_utils = require("workspace_utils")
+    local workspace_info = workspace_utils.get_workspace_info()
+    
+    if workspace_info.is_workspace then
+      vim.cmd("!cargo check --workspace")
+    else
+      vim.cmd("!cargo check")
+    end
+  end,
+  desc = "Cargo check (workspace-aware)",
+},
+
+-- ======= ADVANCED CARGO CHECK =======
+
+-- Cargo check with async job and better output
+["<leader>cj"] = {
+  function()
+    local workspace_utils = require("workspace_utils")
+    local workspace_info = workspace_utils.get_workspace_info()
+    
+    local cmd = workspace_info.is_workspace and "cargo check --workspace" or "cargo check"
+    
+    vim.notify("🔧 Running " .. cmd .. "...", vim.log.levels.INFO)
+    
+    vim.fn.jobstart(cmd, {
+      on_stdout = function(_, data)
+        if data and #data > 0 then
+          for _, line in ipairs(data) do
+            if line ~= "" then
+              vim.notify("📋 " .. line, vim.log.levels.INFO)
+            end
+          end
+        end
+      end,
+      on_stderr = function(_, data)
+        if data and #data > 0 then
+          for _, line in ipairs(data) do
+            if line ~= "" then
+              vim.notify("⚠️ " .. line, vim.log.levels.WARN)
+            end
+          end
+        end
+      end,
+      on_exit = function(_, exit_code)
+        if exit_code == 0 then
+          vim.notify("✅ Cargo check completed successfully!", vim.log.levels.INFO)
+        else
+          vim.notify("❌ Cargo check failed with exit code: " .. exit_code, vim.log.levels.ERROR)
+        end
+        
+        -- Refresh LSP diagnostics after check
+        vim.defer_fn(function()
+          vim.lsp.buf.document_symbol()
+          vim.diagnostic.reset()
+        end, 500)
+      end,
+    })
+  end,
+  desc = "Cargo check (async with output)",
+},
+
+-- ======= CARGO CHECK VARIANTS =======
+
+-- Cargo check with all features
+["<leader>caf"] = {
+  function()
+    vim.cmd("!cargo check --all-features")
+  end,
+  desc = "Cargo check --all-features",
+},
+
+-- Cargo check with no default features
+["<leader>cnf"] = {
+  function()
+    vim.cmd("!cargo check --no-default-features")
+  end,
+  desc = "Cargo check --no-default-features",
+},
+
+-- Cargo check all targets
+["<leader>cat"] = {
+  function()
+    vim.cmd("!cargo check --all-targets")
+  end,
+  desc = "Cargo check --all-targets",
+},
+
+-- ======= PACKAGE-SPECIFIC CARGO CHECK =======
+
+-- Check specific workspace package
+["<leader>cp"] = {
+  function()
+    local workspace_utils = require("workspace_utils")
+    local workspace_info = workspace_utils.get_workspace_info()
+    
+    if not workspace_info.is_workspace or #workspace_info.members == 0 then
+      vim.notify("Not in a workspace or no members found", vim.log.levels.WARN)
+      vim.cmd("!cargo check")
+      return
+    end
+    
+    vim.ui.select(workspace_info.members, {
+      prompt = "Select package to check:",
+      format_item = function(item) return item end,
+    }, function(choice)
+      if choice then
+        vim.cmd("!cargo check -p " .. choice)
+      end
+    end)
+  end,
+  desc = "Cargo check specific package",
+},
+
+-- Check current workspace member (auto-detect)
+["<leader>cl"] = {
+  function()
+    local workspace_utils = require("workspace_utils")
+    local workspace_info = workspace_utils.get_workspace_info()
+    
+    if not workspace_info.is_workspace then
+      vim.cmd("!cargo check")
+      return
+    end
+    
+    -- Find which workspace member we're currently in
+    local current_dir = vim.fn.expand("%:p:h")
+    local current_member = nil
+    
+    for _, member in ipairs(workspace_info.members) do
+      local member_path = workspace_info.root .. "/" .. member
+      if current_dir:match("^" .. vim.pesc(member_path)) then
+        current_member = member
+        break
+      end
+    end
+    
+    if current_member then
+      vim.cmd("!cargo check -p " .. current_member)
+      vim.notify("Checking package: " .. current_member, vim.log.levels.INFO)
+    else
+      vim.notify("Not in a workspace member, running workspace check", vim.log.levels.WARN)
+      vim.cmd("!cargo check --workspace")
+    end
+  end,
+  desc = "Check current package",
+},
+
+-- ======= OTHER CARGO COMMANDS =======
+
+-- Cargo build
+["<leader>cb"] = {
+  function()
+    local workspace_utils = require("workspace_utils")
+    local workspace_info = workspace_utils.get_workspace_info()
+    
+    if workspace_info.is_workspace then
+      vim.cmd("!cargo build --workspace")
+    else
+      vim.cmd("!cargo build")
+    end
+  end,
+  desc = "Cargo build (workspace-aware)",
+},
+
+-- Cargo test
+["<leader>ct"] = {
+  function()
+    local workspace_utils = require("workspace_utils")
+    local workspace_info = workspace_utils.get_workspace_info()
+    
+    if workspace_info.is_workspace then
+      vim.cmd("!cargo test --workspace")
+    else
+      vim.cmd("!cargo test")
+    end
+  end,
+  desc = "Cargo test (workspace-aware)",
+},
+
+-- Cargo clippy
+["<leader>cy"] = {
+  function()
+    local workspace_utils = require("workspace_utils")
+    local workspace_info = workspace_utils.get_workspace_info()
+    
+    if workspace_info.is_workspace then
+      vim.cmd("!cargo clippy --workspace -- -D warnings")
+    else
+      vim.cmd("!cargo clippy -- -D warnings")
+    end
+  end,
+  desc = "Cargo clippy (workspace-aware)",
+},
+
+-- Cargo clean
+["<leader>cn"] = {
+  function()
+    local workspace_utils = require("workspace_utils")
+    local workspace_info = workspace_utils.get_workspace_info()
+    
+    if workspace_info.is_workspace then
+      vim.cmd("!cargo clean --workspace")
+    else
+      vim.cmd("!cargo clean")
+    end
+  end,
+  desc = "Cargo clean (workspace-aware)",
+},
+
+-- ======= TERMINAL INTEGRATION =======
+
+-- Run cargo check in terminal (keeps output visible)
+["<leader>cT"] = {
+  function()
+    local workspace_utils = require("workspace_utils")
+    local workspace_info = workspace_utils.get_workspace_info()
+    
+    local cmd = workspace_info.is_workspace and "cargo check --workspace" or "cargo check"
+    
+    -- Open terminal and run command
+    vim.cmd("split")
+    vim.cmd("terminal " .. cmd)
+    vim.cmd("startinsert")
+  end,
+  desc = "Cargo check in terminal",
+},
+
+-- Run cargo check with ToggleTerm
+["<leader>ctt"] = {
+  function()
+    local workspace_utils = require("workspace_utils")
+    local workspace_info = workspace_utils.get_workspace_info()
+    
+    local cmd = workspace_info.is_workspace and "cargo check --workspace" or "cargo check"
+    
+    -- Use ToggleTerm if available
+    local ok, toggleterm = pcall(require, "toggleterm.terminal")
+    if ok then
+      local Terminal = toggleterm.Terminal
+      local cargo_term = Terminal:new({
+        cmd = cmd,
+        direction = "horizontal",
+        close_on_exit = false,
+      })
+      cargo_term:toggle()
+    else
+      -- Fallback to regular terminal
+      vim.cmd("terminal " .. cmd)
+    end
+  end,
+  desc = "Cargo check with ToggleTerm",
+},
+
+-- ======= QUICK CARGO MENU =======
+
+-- Interactive cargo command menu
+["<leader>cm"] = {
+  function()
+    local workspace_utils = require("workspace_utils")
+    local workspace_info = workspace_utils.get_workspace_info()
+    
+    local workspace_suffix = workspace_info.is_workspace and " --workspace" or ""
+    
+    local commands = {
+      { "Check" .. workspace_suffix, "cargo check" .. workspace_suffix },
+      { "Build" .. workspace_suffix, "cargo build" .. workspace_suffix },
+      { "Test" .. workspace_suffix, "cargo test" .. workspace_suffix },
+      { "Clippy" .. workspace_suffix, "cargo clippy" .. workspace_suffix .. " -- -D warnings" },
+      { "Clean" .. workspace_suffix, "cargo clean" .. workspace_suffix },
+      { "Check all features", "cargo check --all-features" },
+      { "Check no default features", "cargo check --no-default-features" },
+      { "Check all targets", "cargo check --all-targets" },
+      { "Update dependencies", "cargo update" },
+      { "Format code", "cargo fmt" },
+      { "Generate docs", "cargo doc --open" },
+    }
+    
+    vim.ui.select(commands, {
+      prompt = "Select cargo command:",
+      format_item = function(item) return item[1] end,
+    }, function(choice)
+      if choice then
+        vim.cmd("!" .. choice[2])
+      end
+    end)
+  end,
+  desc = "Cargo command menu",
+},
+
+-- ======= CARGO CHECK WITH DIAGNOSTICS =======
+
+-- Cargo check and automatically open diagnostics
+["<leader>cd"] = {
+  function()
+    local workspace_utils = require("workspace_utils")
+    local workspace_info = workspace_utils.get_workspace_info()
+    
+    local cmd = workspace_info.is_workspace and "cargo check --workspace" or "cargo check"
+    
+    vim.notify("🔧 Running " .. cmd .. "...", vim.log.levels.INFO)
+    
+    vim.fn.jobstart(cmd, {
+      on_exit = function(_, exit_code)
+        if exit_code == 0 then
+          vim.notify("✅ No issues found!", vim.log.levels.INFO)
+        else
+          vim.notify("⚠️ Issues found, opening diagnostics...", vim.log.levels.WARN)
+          
+          -- Wait for LSP to update, then show diagnostics
+          vim.defer_fn(function()
+            require("telescope.builtin").diagnostics({
+              prompt_title = "🔍 Cargo Check Results",
+            })
+          end, 2000)
+        end
+      end,
+    })
+  end,
+  desc = "Cargo check + show diagnostics",
+},
 -- ======= WORKSPACE-SPECIFIC SEARCH MAPPINGS =======
 
 -- Smart workspace file finder
