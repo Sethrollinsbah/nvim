@@ -1,5 +1,5 @@
 -- lua/plugins/rustaceanvim.lua
--- Complete rewrite with proper rust-analyzer setup
+-- Fixed configuration with proper inlay hints setup
 
 return {
   "mrcjkb/rustaceanvim",
@@ -141,7 +141,7 @@ return {
           },
         },
         
-        -- Enhanced on_attach
+        -- Enhanced on_attach with FIXED inlay hints
         on_attach = function(client, bufnr)
           vim.notify("🦀 Rust-analyzer attached to buffer " .. bufnr, vim.log.levels.INFO)
           
@@ -151,9 +151,20 @@ return {
           vim.notify("Hover support: " .. tostring(caps.hoverProvider or false), vim.log.levels.DEBUG)
           vim.notify("References support: " .. tostring(caps.referencesProvider or false), vim.log.levels.DEBUG)
           
-          -- Enable inlay hints if supported
+          -- FIXED: Enable inlay hints properly
           if caps.inlayHintProvider then
-            vim.lsp.inlay_hint.enable(bufnr, true)
+            -- Use pcall to safely enable inlay hints
+            local ok, err = pcall(function()
+              vim.lsp.inlay_hint.enable(true, { bufnr = bufnr })
+            end)
+            
+            if not ok then
+              -- Fallback method for older Neovim versions
+              vim.notify("Using fallback inlay hints method", vim.log.levels.DEBUG)
+              pcall(function()
+                vim.lsp.inlay_hint.enable(bufnr, true)
+              end)
+            end
           end
           
           -- Set up keymaps

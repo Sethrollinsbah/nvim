@@ -476,123 +476,21 @@ return {
   end,
   desc = "Check current package",
 },
-
--- ======= OTHER CARGO COMMANDS =======
-
--- Cargo build
-["<leader>cb"] = {
-  function()
-    local workspace_utils = require("workspace_utils")
-    local workspace_info = workspace_utils.get_workspace_info()
-    
-    if workspace_info.is_workspace then
-      vim.cmd("!cargo build --workspace")
-    else
-      vim.cmd("!cargo build")
-    end
-  end,
-  desc = "Cargo build (workspace-aware)",
-},
-
--- Cargo test
-["<leader>ct"] = {
-  function()
-    local workspace_utils = require("workspace_utils")
-    local workspace_info = workspace_utils.get_workspace_info()
-    
-    if workspace_info.is_workspace then
-      vim.cmd("!cargo test --workspace")
-    else
-      vim.cmd("!cargo test")
-    end
-  end,
-  desc = "Cargo test (workspace-aware)",
-},
-
--- Cargo clippy
-["<leader>cy"] = {
-  function()
-    local workspace_utils = require("workspace_utils")
-    local workspace_info = workspace_utils.get_workspace_info()
-    
-    if workspace_info.is_workspace then
-      vim.cmd("!cargo clippy --workspace -- -D warnings")
-    else
-      vim.cmd("!cargo clippy -- -D warnings")
-    end
-  end,
-  desc = "Cargo clippy (workspace-aware)",
-},
-
--- Cargo clean
-["<leader>cn"] = {
-  function()
-    local workspace_utils = require("workspace_utils")
-    local workspace_info = workspace_utils.get_workspace_info()
-    
-    if workspace_info.is_workspace then
-      vim.cmd("!cargo clean --workspace")
-    else
-      vim.cmd("!cargo clean")
-    end
-  end,
-  desc = "Cargo clean (workspace-aware)",
-},
-
 -- ======= TERMINAL INTEGRATION =======
-
--- Run cargo check in terminal (keeps output visible)
-["<leader>cT"] = {
-  function()
-    local workspace_utils = require("workspace_utils")
-    local workspace_info = workspace_utils.get_workspace_info()
-    
-    local cmd = workspace_info.is_workspace and "cargo check --workspace" or "cargo check"
-    
-    -- Open terminal and run command
-    vim.cmd("split")
-    vim.cmd("terminal " .. cmd)
-    vim.cmd("startinsert")
-  end,
-  desc = "Cargo check in terminal",
-},
-
--- Run cargo check with ToggleTerm
-["<leader>ctt"] = {
-  function()
-    local workspace_utils = require("workspace_utils")
-    local workspace_info = workspace_utils.get_workspace_info()
-    
-    local cmd = workspace_info.is_workspace and "cargo check --workspace" or "cargo check"
-    
-    -- Use ToggleTerm if available
-    local ok, toggleterm = pcall(require, "toggleterm.terminal")
-    if ok then
-      local Terminal = toggleterm.Terminal
-      local cargo_term = Terminal:new({
-        cmd = cmd,
-        direction = "horizontal",
-        close_on_exit = false,
-      })
-      cargo_term:toggle()
-    else
-      -- Fallback to regular terminal
-      vim.cmd("terminal " .. cmd)
-    end
-  end,
-  desc = "Cargo check with ToggleTerm",
-},
-
--- ======= QUICK CARGO MENU =======
-
 -- Interactive cargo command menu
 ["<leader>cm"] = {
   function()
-    local workspace_utils = require("workspace_utils")
+    -- Ensure toggleterm is loaded and available
+    local has_toggleterm, toggleterm = pcall(require, "toggleterm")
+    if not has_toggleterm then
+      vim.notify("toggleterm.nvim is not installed or configured.", vim.log.levels.ERROR)
+      return
+    end
+
     local workspace_info = workspace_utils.get_workspace_info()
-    
+
     local workspace_suffix = workspace_info.is_workspace and " --workspace" or ""
-    
+
     local commands = {
       { "Check" .. workspace_suffix, "cargo check" .. workspace_suffix },
       { "Build" .. workspace_suffix, "cargo build" .. workspace_suffix },
@@ -606,17 +504,26 @@ return {
       { "Format code", "cargo fmt" },
       { "Generate docs", "cargo doc --open" },
     }
-    
+
     vim.ui.select(commands, {
       prompt = "Select cargo command:",
       format_item = function(item) return item[1] end,
     }, function(choice)
       if choice then
-        vim.cmd("!" .. choice[2])
+        -- Use toggleterm.exec to run the command in a new terminal
+        -- You can customize 'direction' (e.g., 'float', 'horizontal', 'vertical')
+        -- and 'close_on_exit' based on your preference.
+        toggleterm.exec(choice[2], {
+          direction = "horizontal", -- or "horizontal", "vertical"
+          terminal_options = {
+            -- You can add options specific to the terminal here
+            -- e.g., working_directory = vim.fn.cwd(),
+          }
+        })
       end
     end)
   end,
-  desc = "Cargo command menu",
+  desc = "Cargo command menu (Toggleterm)",
 },
 
 -- ======= CARGO CHECK WITH DIAGNOSTICS =======
@@ -624,13 +531,9 @@ return {
 -- Cargo check and automatically open diagnostics
 ["<leader>cd"] = {
   function()
-    local workspace_utils = require("workspace_utils")
     local workspace_info = workspace_utils.get_workspace_info()
-    
     local cmd = workspace_info.is_workspace and "cargo check --workspace" or "cargo check"
-    
     vim.notify("🔧 Running " .. cmd .. "...", vim.log.levels.INFO)
-    
     vim.fn.jobstart(cmd, {
       on_exit = function(_, exit_code)
         if exit_code == 0 then
