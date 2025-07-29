@@ -1227,18 +1227,18 @@ return {
       -- ======= TERMINAL MODE MAPPINGS =======
 
       -- Terminal mode mappings
-      -- t = {
-      --   -- Better terminal navigation
-      --   ["<C-h>"] = { "<C-\\><C-N><C-w>h", desc = "Terminal left window navigation" },
-      --   ["<C-j>"] = { "<C-\\><C-N><C-w>j", desc = "Terminal down window navigation" },
-      --   ["<C-k>"] = { "<C-\\><C-N><C-w>k", desc = "Terminal up window navigation" },
-      --   ["<C-l>"] = { "<C-\\><C-N><C-w>l", desc = "Terminal right window navigation" },
-      --   ["<esc>"] = { "<C-\\><C-n>", desc = "Terminal normal mode" },
-      --
-      --   -- Better escape for terminal
-      --   ["jk"] = { "<C-\\><C-n>", desc = "Terminal normal mode" },
-      --   ["kj"] = { "<C-\\><C-n>", desc = "Terminal normal mode" },
-      -- },
+     t = {
+        -- Better terminal navigation
+        ["<C-h>"] = { "<C-\\><C-N><C-w>h", desc = "Terminal left window navigation" },
+        ["<C-j>"] = { "<C-\\><C-N><C-w>j", desc = "Terminal down window navigation" },
+        ["<C-k>"] = { "<C-\\><C-N><C-w>k", desc = "Terminal up window navigation" },
+        ["<C-l>"] = { "<C-\\><C-N><C-w>l", desc = "Terminal right window navigation" },
+        ["<esc>"] = { "<C-\\><C-n>", desc = "Terminal normal mode" },
+
+        -- Better escape for terminal
+        ["jk"] = { "<C-\\><C-n>", desc = "Terminal normal mode" },
+        ["kj"] = { "<C-\\><C-n>", desc = "Terminal normal mode" },
+      },
     },
   },
 }
