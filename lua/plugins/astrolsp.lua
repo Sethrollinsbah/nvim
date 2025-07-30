@@ -121,10 +121,7 @@ return {
             end,
           },
 
-          -- Add these mappings to your astrocore.lua for comprehensive diagnostics navigation
-
           -- ======= GLOBAL DIAGNOSTICS MAPPINGS =======
-
           -- Find ALL diagnostics across the entire workspace
           ["<leader>fd"] = {
             function()
@@ -387,28 +384,6 @@ return {
             desc = "Show LSP log",
           },
 
-          -- Check rustaceanvim status
-          ["<leader>LR"] = {
-            function()
-              vim.notify("=== Rustaceanvim Status ===", vim.log.levels.INFO)
-
-              -- Check if rustaceanvim is loaded
-              local rustacean_loaded = pcall(require, "rustaceanvim")
-              vim.notify("Rustaceanvim loaded: " .. tostring(rustacean_loaded), vim.log.levels.INFO)
-
-              -- Check config
-              local config_set = vim.g.rustaceanvim ~= nil
-              vim.notify("Config set: " .. tostring(config_set), vim.log.levels.INFO)
-
-              if config_set then vim.notify("Config type: " .. type(vim.g.rustaceanvim), vim.log.levels.INFO) end
-
-              -- Check if we're in a Rust file
-              local ft = vim.bo.filetype
-              vim.notify("Filetype: " .. ft, vim.log.levels.INFO)
-              vim.notify("Should trigger: " .. tostring(ft == "rust"), vim.log.levels.INFO)
-            end,
-            desc = "Check rustaceanvim status",
-          },
           -- Find diagnostics in specific workspace member
           ["<leader>fdm"] = {
             function()
@@ -543,31 +518,7 @@ return {
 
           -- ======= DIAGNOSTIC DETAILS =======
 
-          -- Show diagnostic details in floating window
-          ["<leader>dd"] = {
-            function()
-              vim.diagnostic.open_float {
-                border = "rounded",
-                source = "always",
-                scope = "cursor",
-              }
-            end,
-            desc = "Show diagnostic details",
-          },
-
-          -- Show all diagnostics for current line
-          ["<leader>dl"] = {
-            function()
-              vim.diagnostic.open_float {
-                border = "rounded",
-                source = "always",
-                scope = "line",
-              }
-            end,
-            desc = "Show line diagnostics",
-          },
-
-          -- ======= DIAGNOSTIC QUICKFIX =======
+                  -- ======= DIAGNOSTIC QUICKFIX =======
 
           -- Send all workspace diagnostics to quickfix list
           ["<leader>dq"] = {

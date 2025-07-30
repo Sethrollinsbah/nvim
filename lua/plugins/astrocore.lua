@@ -300,128 +300,10 @@ return {
           desc = "Workspace commands",
         },
 
-        -- ======= WORKSPACE-SPECIFIC TELESCOPE MAPPINGS =======
-        -- Add these mappings to your astrocore.lua mappings.n section
-        -- These provide comprehensive workspace-aware search capabilities
-
-        -- Add these mappings to your astrocore.lua for comprehensive cargo commands
-
-        -- ======= BASIC CARGO COMMANDS =======
-
-        -- Cargo check (basic)
-        ["<leader>cc"] = {
-          function() vim.cmd "!cargo check" end,
-          desc = "Cargo check",
-        },
-
-        -- Cargo check with workspace awareness
-        ["<leader>cC"] = {
-          function()
-            local workspace_utils = require "workspace_utils"
-            local workspace_info = workspace_utils.get_workspace_info()
-
-            if workspace_info.is_workspace then
-              vim.cmd "!cargo check --workspace"
-            else
-              vim.cmd "!cargo check"
-            end
-          end,
-          desc = "Cargo check (workspace-aware)",
-        },
-
-        -- ======= ADVANCED CARGO CHECK =======
-
-        -- Cargo check with async job and better output
-        ["<leader>cj"] = {
-          function()
-            local workspace_utils = require "workspace_utils"
-            local workspace_info = workspace_utils.get_workspace_info()
-
-            local cmd = workspace_info.is_workspace and "cargo check --workspace" or "cargo check"
-
-            vim.notify("🔧 Running " .. cmd .. "...", vim.log.levels.INFO)
-
-            vim.fn.jobstart(cmd, {
-              on_stdout = function(_, data)
-                if data and #data > 0 then
-                  for _, line in ipairs(data) do
-                    if line ~= "" then vim.notify("📋 " .. line, vim.log.levels.INFO) end
-                  end
-                end
-              end,
-              on_stderr = function(_, data)
-                if data and #data > 0 then
-                  for _, line in ipairs(data) do
-                    if line ~= "" then vim.notify("⚠️ " .. line, vim.log.levels.WARN) end
-                  end
-                end
-              end,
-              on_exit = function(_, exit_code)
-                if exit_code == 0 then
-                  vim.notify("✅ Cargo check completed successfully!", vim.log.levels.INFO)
-                else
-                  vim.notify("❌ Cargo check failed with exit code: " .. exit_code, vim.log.levels.ERROR)
-                end
-
-                -- Refresh LSP diagnostics after check
-                vim.defer_fn(function()
-                  vim.lsp.buf.document_symbol()
-                  vim.diagnostic.reset()
-                end, 500)
-              end,
-            })
-          end,
-          desc = "Cargo check (async with output)",
-        },
-
-        -- ======= CARGO CHECK VARIANTS =======
-
-        -- Cargo check with all features
-        ["<leader>caf"] = {
-          function() vim.cmd "!cargo check --all-features" end,
-          desc = "Cargo check --all-features",
-        },
-
-        -- Cargo check with no default features
-        ["<leader>cnf"] = {
-          function() vim.cmd "!cargo check --no-default-features" end,
-          desc = "Cargo check --no-default-features",
-        },
-
-        -- Cargo check all targets
-        ["<leader>cat"] = {
-          function() vim.cmd "!cargo check --all-targets" end,
-          desc = "Cargo check --all-targets",
-        },
-
-        -- ======= PACKAGE-SPECIFIC CARGO CHECK =======
-
-        -- Check specific workspace package
-        ["<leader>cp"] = {
-          function()
-            local workspace_utils = require "workspace_utils"
-            local workspace_info = workspace_utils.get_workspace_info()
-
-            if not workspace_info.is_workspace or #workspace_info.members == 0 then
-              vim.notify("Not in a workspace or no members found", vim.log.levels.WARN)
-              vim.cmd "!cargo check"
-              return
-            end
-
-            vim.ui.select(workspace_info.members, {
-              prompt = "Select package to check:",
-              format_item = function(item) return item end,
-            }, function(choice)
-              if choice then vim.cmd("!cargo check -p " .. choice) end
-            end)
-          end,
-          desc = "Cargo check specific package",
-        },
-
         -- ======= TERMINAL INTEGRATION =======
         -- Interactive cargo command menu
         -- Enhanced interactive cargo command menu with all targets and popup terminal
-        ["<leader>CM"] = {
+        ["<leader>mc"] = {
           function()
             -- Ensure toggleterm is loaded and available
             local has_toggleterm, toggleterm = pcall(require, "toggleterm")
@@ -670,184 +552,173 @@ return {
         },
 
         -- Find test files
-        ["<leader>fwt"] = {
-          function()
-            local workspace_utils = require "workspace_utils"
-            local workspace_info = workspace_utils.get_workspace_info()
-
-            local search_dirs = { vim.fn.getcwd() }
-            if workspace_info.is_workspace then
-              search_dirs = {}
-              for _, member in ipairs(workspace_info.members) do
-                table.insert(search_dirs, workspace_info.root .. "/" .. member)
-              end
-            end
-
-            require("telescope.builtin").live_grep {
-              prompt_title = "Find Tests in Workspace",
-              search_dirs = search_dirs,
-              default_text = "#[test]",
-              additional_args = { "--type", "rust", "--glob", "!target/**" },
-            }
-          end,
-          desc = "Find tests in workspace",
-        },
-
-        -- Find functions/structs/enums
-        ["<leader>fws"] = {
-          function()
-            local workspace_utils = require "workspace_utils"
-            local workspace_info = workspace_utils.get_workspace_info()
-            local search_dirs = { vim.fn.getcwd() }
-            if workspace_info.is_workspace then
-              search_dirs = {}
-              for _, member in ipairs(workspace_info.members) do
-                table.insert(search_dirs, workspace_info.root .. "/" .. member)
-              end
-            end
-
-            -- Symbol types with better patterns
-            local symbol_types = {
-              { "🔧 Functions", "^\\s*(pub\\s+)?fn\\s+" },
-              { "📦 Structs", "^\\s*(pub\\s+)?struct\\s+" },
-              { "🏷️  Enums", "^\\s*(pub\\s+)?enum\\s+" },
-              { "⚡ Implementations", "^\\s*impl\\s+" },
-              { "🎯 Traits", "^\\s*(pub\\s+)?trait\\s+" },
-              { "📁 Modules", "^\\s*(pub\\s+)?mod\\s+" },
-              { "🔍 All Symbols", "(^\\s*(pub\\s+)?(fn|struct|enum|impl|trait|mod)\\s+)" },
-              { "✏️  Custom Search", "custom" },
-            }
-
-            vim.ui.select(symbol_types, {
-              prompt = "Select symbol type to search:",
-              format_item = function(item) return item[1] end,
-            }, function(choice)
-              if choice then
-                if choice[2] == "custom" then
-                  vim.ui.input({
-                    prompt = "Enter search pattern: ",
-                    default = "",
-                  }, function(pattern)
-                    if pattern and pattern ~= "" then
-                      require("telescope.builtin").live_grep {
-                        prompt_title = "Find Symbols: " .. pattern,
-                        search_dirs = search_dirs,
-                        default_text = pattern,
-                        additional_args = {
-                          "--type",
-                          "rust",
-                          "--glob",
-                          "!target/**",
-                        },
-                      }
-                    end
-                  end)
-                else
-                  require("telescope.builtin").live_grep {
-                    prompt_title = choice[1] .. " in Workspace",
-                    search_dirs = search_dirs,
-                    default_text = choice[2],
-                    additional_args = {
-                      "--type",
-                      "rust",
-                      "--glob",
-                      "!target/**",
-                      "--regexp",
-                    },
-                  }
-                end
-              end
-            end)
-          end,
-          desc = "Find symbols in workspace",
-        },
-
-        -- Find Cargo.toml files
         ["<leader>fwc"] = {
-          function()
-            local workspace_utils = require "workspace_utils"
-            local workspace_info = workspace_utils.get_workspace_info()
+  function()
+    local workspace_utils = require "workspace_utils"
+    local workspace_info = workspace_utils.get_workspace_info()
+    local search_dirs = { vim.fn.getcwd() }
+    if workspace_info.is_workspace then
+      search_dirs = { workspace_info.root }
+      for _, member in ipairs(workspace_info.members) do
+        table.insert(search_dirs, workspace_info.root .. "/" .. member)
+      end
+    end
 
-            local search_dirs = { vim.fn.getcwd() }
-            if workspace_info.is_workspace then
-              search_dirs = { workspace_info.root }
-              for _, member in ipairs(workspace_info.members) do
-                table.insert(search_dirs, workspace_info.root .. "/" .. member)
-              end
-            end
+    -- Detect project type and define config files
+    local function get_config_patterns()
+      local patterns = {}
+      local project_types = {}
 
-            require("telescope.builtin").find_files {
-              prompt_title = "Cargo Files in Workspace",
-              search_dirs = search_dirs,
-              find_command = { "find", ".", "-name", "Cargo.toml", "-type", "f", "!", "-path", "*/target/*" },
-            }
-          end,
-          desc = "Find Cargo.toml files",
-        },
+      -- Check for different project types in search directories
+      for _, dir in ipairs(search_dirs) do
+        -- Rust projects
+        if vim.fn.filereadable(dir .. "/Cargo.toml") == 1 then
+          table.insert(patterns, { name = "Cargo.toml", pattern = "Cargo.toml" })
+          table.insert(project_types, "Rust")
+        end
+        
+        -- Node.js projects
+        if vim.fn.filereadable(dir .. "/package.json") == 1 then
+          table.insert(patterns, { name = "package.json", pattern = "package.json" })
+          table.insert(project_types, "Node.js")
+        end
+        
+        -- Python projects
+        if vim.fn.filereadable(dir .. "/pyproject.toml") == 1 then
+          table.insert(patterns, { name = "pyproject.toml", pattern = "pyproject.toml" })
+          table.insert(project_types, "Python")
+        end
+        if vim.fn.filereadable(dir .. "/setup.py") == 1 then
+          table.insert(patterns, { name = "setup.py", pattern = "setup.py" })
+          table.insert(project_types, "Python")
+        end
+        if vim.fn.filereadable(dir .. "/requirements.txt") == 1 then
+          table.insert(patterns, { name = "requirements.txt", pattern = "requirements.txt" })
+          table.insert(project_types, "Python")
+        end
+        
+        -- Go projects
+        if vim.fn.filereadable(dir .. "/go.mod") == 1 then
+          table.insert(patterns, { name = "go.mod", pattern = "go.mod" })
+          table.insert(project_types, "Go")
+        end
+        
+        -- C/C++ projects
+        if vim.fn.filereadable(dir .. "/CMakeLists.txt") == 1 then
+          table.insert(patterns, { name = "CMakeLists.txt", pattern = "CMakeLists.txt" })
+          table.insert(project_types, "C/C++")
+        end
+        if vim.fn.filereadable(dir .. "/Makefile") == 1 then
+          table.insert(patterns, { name = "Makefile", pattern = "Makefile" })
+          table.insert(project_types, "C/C++")
+        end
+        
+        -- Java projects
+        if vim.fn.filereadable(dir .. "/pom.xml") == 1 then
+          table.insert(patterns, { name = "pom.xml", pattern = "pom.xml" })
+          table.insert(project_types, "Java/Maven")
+        end
+        if vim.fn.filereadable(dir .. "/build.gradle") == 1 or vim.fn.filereadable(dir .. "/build.gradle.kts") == 1 then
+          table.insert(patterns, { name = "build.gradle*", pattern = "build.gradle*" })
+          table.insert(project_types, "Java/Gradle")
+        end
+        
+        -- Docker
+        if vim.fn.filereadable(dir .. "/Dockerfile") == 1 then
+          table.insert(patterns, { name = "Dockerfile", pattern = "Dockerfile*" })
+          table.insert(project_types, "Docker")
+        end
+        if vim.fn.filereadable(dir .. "/docker-compose.yml") == 1 or vim.fn.filereadable(dir .. "/docker-compose.yaml") == 1 then
+          table.insert(patterns, { name = "docker-compose.y*ml", pattern = "docker-compose.y*ml" })
+          table.insert(project_types, "Docker")
+        end
+        
+        -- Generic config files
+        if vim.fn.filereadable(dir .. "/.env") == 1 then
+          table.insert(patterns, { name = ".env*", pattern = ".env*" })
+        end
+      end
 
-        -- Find documentation
-        ["<leader>fwd"] = {
-          function()
-            local workspace_utils = require "workspace_utils"
-            local workspace_info = workspace_utils.get_workspace_info()
+      -- Remove duplicates
+      local seen = {}
+      local unique_patterns = {}
+      for _, pattern in ipairs(patterns) do
+        if not seen[pattern.name] then
+          seen[pattern.name] = true
+          table.insert(unique_patterns, pattern)
+        end
+      end
 
-            local search_dirs = { vim.fn.getcwd() }
-            if workspace_info.is_workspace then
-              search_dirs = {}
-              for _, member in ipairs(workspace_info.members) do
-                table.insert(search_dirs, workspace_info.root .. "/" .. member)
-              end
-            end
+      return unique_patterns, project_types
+    end
 
-            require("telescope.builtin").find_files {
-              prompt_title = "Documentation in Workspace",
-              search_dirs = search_dirs,
-              find_command = {
-                "rg",
-                "--files",
-                "--glob",
-                "*.md",
-                "--glob",
-                "*.txt",
-                "--glob",
-                "*.rst",
-                "--glob",
-                "!target/**",
-              },
-            }
-          end,
-          desc = "Find documentation in workspace",
-        },
+    local config_patterns, detected_types = get_config_patterns()
+    
+    if #config_patterns == 0 then
+      -- Fallback: search for common config files
+      config_patterns = {
+        { name = "All Config Files", pattern = "*" }
+      }
+    end
 
-        -- Search for specific workspace member files
-        ["<leader>fwm"] = {
-          function()
-            local workspace_utils = require "workspace_utils"
-            local workspace_info = workspace_utils.get_workspace_info()
+    -- Add option to search all config files
+    table.insert(config_patterns, 1, { name = "🔍 All Config Files", pattern = "*" })
 
-            if not workspace_info.is_workspace or #workspace_info.members == 0 then
-              vim.notify("No workspace members found", vim.log.levels.WARN)
-              return
-            end
+    local project_type_str = #detected_types > 0 and " (" .. table.concat(detected_types, ", ") .. ")" or ""
 
-            -- Let user select workspace member first
-            vim.ui.select(workspace_info.members, {
-              prompt = "Select workspace member to search:",
-              format_item = function(item) return item end,
-            }, function(choice)
-              if choice then
-                local member_path = workspace_info.root .. "/" .. choice
+    vim.ui.select(config_patterns, {
+      prompt = "Select config files to find" .. project_type_str .. ":",
+      format_item = function(item) return item.name end,
+    }, function(choice)
+      if choice then
+        local find_command
+        local prompt_title
+        
+        if choice.pattern == "*" then
+          -- Search for all common config files
+          find_command = { 
+            "find", ".", 
+            "\\(", 
+              "-name", "*.toml", "-o",
+              "-name", "*.json", "-o", 
+              "-name", "*.yml", "-o", 
+              "-name", "*.yaml", "-o",
+              "-name", "Makefile", "-o",
+              "-name", "Dockerfile*", "-o",
+              "-name", ".env*", "-o",
+              "-name", "*.lock", "-o",
+              "-name", "*.mod", "-o",
+              "-name", "*.gradle*", "-o",
+              "-name", "*.xml", 
+            "\\)",
+            "-type", "f", 
+            "!", "-path", "*/target/*",
+            "!", "-path", "*/node_modules/*",
+            "!", "-path", "*/.git/*",
+            "!", "-path", "*/build/*"
+          }
+          prompt_title = "All Config Files in Workspace"
+        else
+          find_command = { 
+            "find", ".", "-name", choice.pattern, "-type", "f", 
+            "!", "-path", "*/target/*",
+            "!", "-path", "*/node_modules/*", 
+            "!", "-path", "*/.git/*",
+            "!", "-path", "*/build/*"
+          }
+          prompt_title = choice.name .. " Files in Workspace"
+        end
 
-                require("telescope.builtin").find_files {
-                  prompt_title = "Files in " .. choice,
-                  search_dirs = { member_path },
-                  find_command = { "rg", "--files", "--type", "rust", "--glob", "!target/**" },
-                }
-              end
-            end)
-          end,
-          desc = "Find files in specific workspace member",
-        },
+        require("telescope.builtin").find_files {
+          prompt_title = prompt_title,
+          search_dirs = search_dirs,
+          find_command = find_command,
+        }
+      end
+    end)
+  end,
+  desc = "Find config files in workspace",
+},
 
         -- Quick workspace overview with file counts
         ["<leader>fwi"] = {
@@ -939,16 +810,6 @@ return {
             }
           end,
           desc = "Find recent buffers",
-        },
-
-        ["<leader>fh"] = {
-          function() require("telescope.builtin").help_tags() end,
-          desc = "Find help",
-        },
-
-        ["<leader>fc"] = {
-          function() require("telescope.builtin").commands() end,
-          desc = "Find commands",
         },
 
         ["<leader>fk"] = {

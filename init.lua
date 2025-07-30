@@ -22,18 +22,4 @@ require "lazy_setup"
 require "polish"
 
 vim.opt.swapfile = false
--- require("toggleterm").setup({
---   -- ... other config
---   open_mapping = [[<c-\>]], -- Default toggle
---   terminal_mappings = true,
---   insert_mappings = true,
---
---   -- Custom keybindings for terminal mode
---   on_create = function(term)
---     local opts = { buffer = term.bufnr }
---     -- Quick escape from terminal insert mode
---     vim.keymap.set("t", "<Esc><Esc>", "<C-\\><C-n>", opts)
---     -- Quick close terminal
---     vim.keymap.set("t", "<C-q>", "<C-\\><C-n>:q<CR>", opts)
---   end,
--- })
+
