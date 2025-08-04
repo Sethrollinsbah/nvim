@@ -22,16 +22,7 @@ return {
     
     -- Default connection configurations
     vim.g.dbs = {
-      -- -- PostgreSQL examples
-      -- dev_postgres = 'postgresql://username:password@localhost:5432/database_name',
-      -- local_postgres = 'postgresql://postgres:postgres@localhost:5432/postgres',
-      --
-      -- -- SQLite examples
-      -- local_sqlite = 'sqlite:' .. vim.fn.expand('~/Documents/local.db'),
       test_sqlite = 'sqlite:/Users/sethr/dev/outdoor-tranformations/local.db',
-      
-      -- You can also use environment variables
-      -- prod_postgres = os.getenv('DATABASE_URL'),
     }
     
     -- Completion settings
@@ -73,7 +64,7 @@ return {
       }
     }
 
-    -- Key mappings for DBUI (moved from config to init)
+    -- Key mappings for DBUI
     vim.keymap.set('n', '<leader>db', '<cmd>DBUIToggle<cr>', { desc = 'Toggle DBUI' })
     vim.keymap.set('n', '<leader>df', '<cmd>DBUIFindBuffer<cr>', { desc = 'Find DB buffer' })
     vim.keymap.set('n', '<leader>dr', '<cmd>DBUIRenameBuffer<cr>', { desc = 'Rename DB buffer' })
@@ -81,25 +72,10 @@ return {
   end,
   
   config = function()
-    -- SINGLE completion setup - only this one
-    local ok, cmp = pcall(require, 'cmp')
-    if ok then
-      cmp.setup.filetype({ 'sql', 'sqlite', 'psql' }, {
-        sources = cmp.config.sources({
-          { name = 'vim-dadbod-completion' },
-          { name = 'buffer' },
-        })
-      })
-    end
-
-    -- Autocommand for SQL-specific keymaps ONLY (no completion setup here)
+    -- ONLY SQL-specific keymaps - NO completion setup here
     vim.api.nvim_create_autocmd('FileType', {
-      pattern = { 'sql', 'sqlite', 'psql' },
+      pattern = { 'sql', 'sqlite', 'psql', 'mysql', 'plsql' },
       callback = function()
-        -- Disable vim's native completion to prevent conflicts
-        vim.bo.omnifunc = ''
-        vim.bo.completefunc = ''
-        
         -- SQL-specific key mappings only
         local opts = { buffer = true, silent = true }
         vim.keymap.set('n', '<leader>S', '<Plug>(DBUI_SaveQuery)', opts)
@@ -109,9 +85,6 @@ return {
         -- Execute query mappings
         vim.keymap.set('n', '<leader><leader>', '<Plug>(DBUI_ExecuteQuery)', opts)
         vim.keymap.set('v', '<leader><leader>', '<Plug>(DBUI_ExecuteQuery)', opts)
-        
-        -- Disable manual completion triggers that might conflict
-        vim.keymap.set('i', '<C-x><C-o>', '<Nop>', { buffer = true, silent = true })
       end,
     })
   end,

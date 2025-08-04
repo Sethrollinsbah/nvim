@@ -1,144 +1,123 @@
 return {
+  {
+    "hrsh7th/nvim-cmp", -- Autocompletion engine
+    dependencies = {
+      "hrsh7th/cmp-nvim-lsp", -- Completion source for LSP
+      "hrsh7th/cmp-buffer", -- Buffer completions
+      "hrsh7th/cmp-path", -- Path completions
+      "hrsh7th/cmp-cmdline", -- Command line completions
+      "L3MON4D3/LuaSnip", -- Snippets
+      "saadparwaiz1/cmp_luasnip", -- Snippet completion source
+      "kristijanhusak/vim-dadbod-completion", -- SQL completion source
+    },
+    config = function()
+      local cmp = require("cmp")
+      local luasnip = require("luasnip")
 
- {
-  "hrsh7th/nvim-cmp", -- Autocompletion engine
-  dependencies = {
-    "hrsh7th/cmp-nvim-lsp", -- Completion source for LSP
-    "hrsh7th/cmp-buffer", -- Buffer completions
-    "hrsh7th/cmp-path", -- Path completions
-    "hrsh7th/cmp-cmdline", -- Command line completions
-    "L3MON4D3/LuaSnip", -- Snippets
-    "saadparwaiz1/cmp_luasnip", -- Snippet completion source
-    "kristijanhusak/vim-dadbod-completion", -- SQL completion source
-  },
-  config = function()
-    local cmp = require("cmp")
-    local luasnip = require("luasnip")
+      -- Helper function to check if we have words before cursor
+      local has_words_before = function()
+        unpack = unpack or table.unpack
+        local line, col = unpack(vim.api.nvim_win_get_cursor(0))
+        return col ~= 0 and vim.api.nvim_buf_get_lines(0, line - 1, line, true)[1]:sub(col, col):match("%s") == nil
+      end
 
-    -- Helper function to check if we have words before cursor
-    local has_words_before = function()
-      unpack = unpack or table.unpack
-      local line, col = unpack(vim.api.nvim_win_get_cursor(0))
-      return col ~= 0 and vim.api.nvim_buf_get_lines(0, line - 1, line, true)[1]:sub(col, col):match("%s") == nil
-    end
-
-    cmp.setup({
-      snippet = {
-        expand = function(args)
-          luasnip.lsp_expand(args.body)
-        end,
-      },
-      
-      window = {
-        completion = cmp.config.window.bordered(),
-        documentation = cmp.config.window.bordered(),
-      },
-      
-      mapping = cmp.mapping.preset.insert({
-        ["<C-b>"] = cmp.mapping.scroll_docs(-4),
-        ["<C-f>"] = cmp.mapping.scroll_docs(4),
-        ["<C-Space>"] = cmp.mapping.complete(),
-        ["<C-e>"] = cmp.mapping.abort(),
-        ["<CR>"] = cmp.mapping.confirm({ select = true }),
+      -- MAIN CMP SETUP - for all filetypes
+      cmp.setup({
+        snippet = {
+          expand = function(args)
+            luasnip.lsp_expand(args.body)
+          end,
+        },
         
-        -- Tab completion
-        ["<Tab>"] = cmp.mapping(function(fallback)
-          if cmp.visible() then
-            cmp.select_next_item()
-          elseif luasnip.expand_or_jumpable() then
-            luasnip.expand_or_jump()
-          elseif has_words_before() then
-            cmp.complete()
-          else
-            fallback()
-          end
-        end, { "i", "s" }),
+        window = {
+          completion = cmp.config.window.bordered(),
+          documentation = cmp.config.window.bordered(),
+        },
         
-        ["<S-Tab>"] = cmp.mapping(function(fallback)
-          if cmp.visible() then
-            cmp.select_prev_item()
-          elseif luasnip.jumpable(-1) then
-            luasnip.jump(-1)
-          else
-            fallback()
-          end
-        end, { "i", "s" }),
-      }),
-      
-      sources = cmp.config.sources({
-        { name = "nvim_lsp" },
-        { name = "luasnip" },
-      }, {
-        { name = "buffer" },
-        { name = "path" },
-      }),
-      
-      formatting = {
-        format = function(entry, vim_item)
-          -- Add source name to completion items
-          vim_item.menu = ({
-            nvim_lsp = "[LSP]",
-            luasnip = "[Snippet]",
-            buffer = "[Buffer]",
-            path = "[Path]",
-            ["vim-dadbod-completion"] = "[DB]",
-          })[entry.source.name]
-          return vim_item
-        end,
-      },
-    })
-
-    -- SQL-specific configuration
-    cmp.setup.filetype({ "sql", "sqlite", "psql", "mysql", "plsql" }, {
-      sources = cmp.config.sources({
-        { name = "vim-dadbod-completion" },
-        { name = "luasnip" },
-      }, {
-        { name = "buffer" },
-      }),
-    })
-
-    -- Additional SQL autocmds for better experience
-    vim.api.nvim_create_autocmd("FileType", {
-      pattern = { "sql", "sqlite", "psql", "mysql", "plsql" },
-      callback = function()
-        -- Enable completion triggered by <c-x><c-o>
-        -- vim.bo.omnifunc = "vim_dadbod_completion#omni"
+        mapping = cmp.mapping.preset.insert({
+          ["<C-b>"] = cmp.mapping.scroll_docs(-4),
+          ["<C-f>"] = cmp.mapping.scroll_docs(4),
+          ["<C-Space>"] = cmp.mapping.complete(),
+          ["<C-e>"] = cmp.mapping.abort(),
+          ["<CR>"] = cmp.mapping.confirm({ select = true }),
+          
+          -- Tab completion
+          ["<Tab>"] = cmp.mapping(function(fallback)
+            if cmp.visible() then
+              cmp.select_next_item()
+            elseif luasnip.expand_or_jumpable() then
+              luasnip.expand_or_jump()
+            elseif has_words_before() then
+              cmp.complete()
+            else
+              fallback()
+            end
+          end, { "i", "s" }),
+          
+          ["<S-Tab>"] = cmp.mapping(function(fallback)
+            if cmp.visible() then
+              cmp.select_prev_item()
+            elseif luasnip.jumpable(-1) then
+              luasnip.jump(-1)
+            else
+              fallback()
+            end
+          end, { "i", "s" }),
+        }),
         
-        -- Optional: Set up additional SQL-specific settings
-        vim.bo.commentstring = "-- %s"
+        -- DEFAULT sources for most files
+        sources = cmp.config.sources({
+          { name = "nvim_lsp" },
+          { name = "luasnip" },
+        }, {
+          { name = "buffer" },
+          { name = "path" },
+        }),
         
-        -- Enable auto-completion on certain characters
-        cmp.setup.buffer({
-          completion = {
-            autocomplete = {
-              cmp.TriggerEvent.TextChanged,
-              cmp.TriggerEvent.InsertEnter,
-            },
-          },
-        })
-      end,
-    })
-
-    -- Command line completion
-    cmp.setup.cmdline(":", {
-      mapping = cmp.mapping.preset.cmdline(),
-      sources = cmp.config.sources({
-        { name = "path" }
-      }, {
-        { name = "cmdline" }
+        formatting = {
+          format = function(entry, vim_item)
+            -- Add source name to completion items
+            vim_item.menu = ({
+              nvim_lsp = "[LSP]",
+              luasnip = "[Snippet]",
+              buffer = "[Buffer]",
+              path = "[Path]",
+              ["vim-dadbod-completion"] = "[DB]",
+            })[entry.source.name]
+            return vim_item
+          end,
+        },
       })
-    })
 
-    -- Search completion
-    cmp.setup.cmdline({ "/", "?" }, {
-      mapping = cmp.mapping.preset.cmdline(),
-      sources = {
-        { name = "buffer" }
-      }
-    })
-  end,
-},
+      -- SQL COMPLETION - Single setup, prioritize DB completion
+      cmp.setup.filetype({ "sql", "sqlite", "psql", "mysql", "plsql" }, {
+        sources = {
+          { name = "vim-dadbod-completion" }, -- DB completion first
+          { name = "buffer" },               -- Buffer second
+          { name = "luasnip" },             -- Snippets last
+        },
+      })
+
+      -- Command line completion
+      cmp.setup.cmdline(":", {
+        mapping = cmp.mapping.preset.cmdline(),
+        sources = cmp.config.sources({
+          { name = "path" }
+        }, {
+          { name = "cmdline" }
+        })
+      })
+
+      -- Search completion
+      cmp.setup.cmdline({ "/", "?" }, {
+        mapping = cmp.mapping.preset.cmdline(),
+        sources = {
+          { name = "buffer" }
+        }
+      })
+    end,
+  },
+
   -- customize dashboard options
   {
     "folke/snacks.nvim",
@@ -152,11 +131,11 @@ return {
             "     ██ ██       ██ ██████",
             "███████ ████████ ██ ██  ██",
             "",
-            "██     ██ ██ ███    ███ ██",
-            "██     ██    ████  ████ ██",
-            "██     ██ ██ ██ ████ ██ ██",
-            " ██   ██  ██ ██  ██  ██   ",
-            "  █████   ██ ██      ██ ██",
+            "██     ██ ██ ███    ███ ██",
+            "██     ██    ████  ████ ██",
+            "██     ██ ██ ██ ████ ██ ██",
+            " ██   ██  ██ ██  ██  ██   ",
+            "  █████   ██ ██      ██ ██",
           }, "\n"),
         },
       },
