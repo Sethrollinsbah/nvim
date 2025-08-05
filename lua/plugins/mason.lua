@@ -1,5 +1,5 @@
 -- lua/plugins/mason.lua
--- Mason configuration WITHOUT rust-analyzer (handled by rustaceanvim)
+-- Mason configuration WITH SQL support but WITHOUT rust-analyzer (handled by rustaceanvim)
 
 ---@type LazySpec
 return {
@@ -16,6 +16,9 @@ return {
         "yamlls",
         "pyright",
         "bashls",
+        -- SQL Language Servers
+        "sqlls",        -- Primary SQL Language Server
+        "sqls",         -- Alternative SQL language server (optional)
       })
     end,
   },
@@ -33,6 +36,9 @@ return {
         "black", -- Python formatter
         "isort", -- Python import sorter
         "shellcheck", -- Shell script linter
+        -- SQL formatters and linters
+        "sqlfluff",      -- SQL linter and formatter
+        "sql-formatter", -- SQL formatter
         -- NOTE: No rustfmt here - cargo handles Rust formatting
       })
     end,
@@ -200,5 +206,33 @@ return {
         end,
       },
     },
+  },
+
+  -- Enhanced None-ls configuration for SQL formatting
+  {
+    "nvimtools/none-ls.nvim",
+    opts = function(_, config)
+      local null_ls = require("null-ls")
+      
+      -- Ensure sources table exists
+      config.sources = config.sources or {}
+      
+      -- Add SQL formatting and diagnostics
+      vim.list_extend(config.sources, {
+        -- SQL formatting
+        null_ls.builtins.formatting.sql_formatter.with({
+          filetypes = { "sql", "sqlite", "psql", "mysql", "plsql" },
+          args = { "--language", "sql", "--indent_width", "2" },
+        }),
+        
+        -- SQL linting (if sqlfluff is installed)
+        null_ls.builtins.diagnostics.sqlfluff.with({
+          filetypes = { "sql", "sqlite", "psql", "mysql", "plsql" },
+          extra_args = { "--dialect", "sqlite" }, -- Change dialect as needed
+        }),
+      })
+      
+      return config
+    end,
   },
 }

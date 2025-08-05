@@ -1,5 +1,5 @@
 -- lua/plugins/astrolsp.lua
--- Main AstroLSP configuration that loads language-specific configs
+-- Main AstroLSP configuration that loads language-specific configs with SQL support
 
 ---@type LazySpec
 return {
@@ -28,6 +28,7 @@ return {
       "web",
       "system",
       -- NOTE: "rust" is excluded - handled by rustaceanvim
+      -- NOTE: "sql" is added directly below instead of as separate file
     }
 
     for _, lang in ipairs(languages) do
@@ -63,6 +64,12 @@ return {
             "html",
             "css",
             "svelte",
+            -- SQL filetypes
+            "sql",
+            "sqlite",
+            "mysql",
+            "psql",
+            "plsql",
             -- NOTE: "rust" formatting is handled by rustaceanvim
           },
         },
@@ -78,8 +85,69 @@ return {
         -- Explicitly exclude rust_analyzer
       },
 
-      -- Use the loaded language configurations (no rust configs)
-      config = lang_configs,
+      -- Use the loaded language configurations + SQL configs
+      config = vim.tbl_deep_extend("force", lang_configs, {
+        -- SQL Language Servers added directly
+        sqlls = {
+          cmd = { "sql-language-server", "up", "--method", "stdio" },
+          filetypes = { "sql", "sqlite", "psql", "mysql", "plsql" },
+          root_dir = function(fname)
+            local util = require("lspconfig.util")
+            return util.root_pattern(".git", "*.sql")(fname) or util.path.dirname(fname)
+          end,
+          settings = {
+            sqlLanguageServer = {
+              connections = {
+                {
+                  name = "local_sqlite",
+                  adapter = "sqlite3",
+                  filename = vim.fn.expand("~/dev/outdoor-tranformations/local.db"),
+                },
+                -- Add more connections as needed
+                -- {
+                --   name = "postgres_dev",
+                --   adapter = "postgresql",
+                --   host = "localhost",
+                --   port = 5432,
+                --   user = "dev_user",
+                --   database = "dev_db",
+                -- },
+              },
+              lint = {
+                rules = {
+                  "align-column-to-the-first",
+                  "column-new-line",
+                  "linebreak-after-clause-keyword",
+                  "max-len",
+                  "no-space-function",
+                  "uppercase-keywords",
+                  "where-clause-new-line",
+                },
+              },
+            },
+          },
+        },
+
+        -- Alternative SQL language server
+        sqls = {
+          cmd = { "sqls" },
+          filetypes = { "sql", "sqlite", "psql", "mysql", "plsql" },
+          root_dir = function(fname)
+            local util = require("lspconfig.util")
+            return util.root_pattern(".sqls.yml", ".git")(fname) or util.path.dirname(fname)
+          end,
+          settings = {
+            sqls = {
+              connections = {
+                {
+                  driver = "sqlite3",
+                  dataSourceName = vim.fn.expand("~/dev/outdoor-tranformations/local.db"),
+                },
+              },
+            },
+          },
+        },
+      }),
 
       -- Setup handlers - explicitly prevent rust_analyzer
       setup_handlers = {
@@ -646,6 +714,71 @@ return {
         if client.name == "rust_analyzer" then
           vim.notify("Rust analyzer managed by rustaceanvim, skipping astrolsp on_attach", vim.log.levels.INFO)
           return
+        end
+
+        -- SQL-SPECIFIC HANDLING
+        if client.name == "sqlls" or client.name == "sqls" then
+          local opts = { buffer = bufnr, silent = true }
+          
+          -- Enhanced hover for SQL with function definitions
+          vim.keymap.set("n", "K", function()
+            -- First try LSP hover
+            vim.lsp.buf.hover()
+            
+            -- Fallback with SQL function definitions  
+            vim.defer_fn(function()
+              local word = vim.fn.expand("<cword>")
+              if word and word ~= "" then
+                local sql_functions = {
+                  COUNT = "COUNT(column) - Returns the number of rows",
+                  SUM = "SUM(column) - Returns the sum of values",
+                  AVG = "AVG(column) - Returns the average of values", 
+                  MAX = "MAX(column) - Returns the maximum value",
+                  MIN = "MIN(column) - Returns the minimum value",
+                  UPPER = "UPPER(string) - Converts string to uppercase",
+                  LOWER = "LOWER(string) - Converts string to lowercase",
+                  LENGTH = "LENGTH(string) - Returns the length of string",
+                  SUBSTR = "SUBSTR(string, start, length) - Extracts substring",
+                  COALESCE = "COALESCE(val1, val2, ...) - Returns first non-null value",
+                  CASE = "CASE WHEN condition THEN result END - Conditional expression",
+                  GROUP_CONCAT = "GROUP_CONCAT(column) - Concatenates values from multiple rows",
+                  DISTINCT = "DISTINCT - Returns unique values only",
+                  JOIN = "JOIN - Combines rows from multiple tables",
+                  LEFT_JOIN = "LEFT JOIN - Returns all rows from left table",
+                  INNER_JOIN = "INNER JOIN - Returns rows with matching values",
+                  WHERE = "WHERE - Filters rows based on conditions",
+                  ORDER_BY = "ORDER BY - Sorts result set",
+                  GROUP_BY = "GROUP BY - Groups rows sharing property",
+                  HAVING = "HAVING - Filters groups (used with GROUP BY)",
+                }
+                
+                local upper_word = string.upper(word)
+                if sql_functions[upper_word] then
+                  vim.notify("SQL: " .. sql_functions[upper_word], vim.log.levels.INFO)
+                end
+              end
+            end, 500) -- Wait 500ms for LSP response
+          end, vim.tbl_extend("force", opts, { desc = "SQL Enhanced Hover" }))
+          
+          -- SQL-specific commands
+          vim.keymap.set("n", "<leader>sd", function()
+            local word = vim.fn.expand("<cword>")
+            if word and word ~= "" then
+              vim.cmd("DB PRAGMA table_info(" .. word .. ")")
+            end
+          end, vim.tbl_extend("force", opts, { desc = "Describe SQL table" }))
+
+          vim.keymap.set("n", "<leader>se", function()
+            vim.cmd("DB < %")
+          end, vim.tbl_extend("force", opts, { desc = "Execute SQL file" }))
+
+          vim.keymap.set("v", "<leader>se", function()
+            vim.cmd("'<,'>DB")
+          end, vim.tbl_extend("force", opts, { desc = "Execute selected SQL" }))
+
+          vim.keymap.set("n", "<leader>sf", function()
+            vim.lsp.buf.format({ async = true })
+          end, vim.tbl_extend("force", opts, { desc = "Format SQL" }))
         end
 
         -- General LSP on_attach logic for other languages
