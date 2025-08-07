@@ -8,7 +8,6 @@ return {
       "hrsh7th/cmp-cmdline", -- Command line completions
       "L3MON4D3/LuaSnip", -- Snippets
       "saadparwaiz1/cmp_luasnip", -- Snippet completion source
-      "kristijanhusak/vim-dadbod-completion", -- SQL completion source
     },
     config = function()
       local cmp = require("cmp")
@@ -82,23 +81,12 @@ return {
               luasnip = "[Snippet]",
               buffer = "[Buffer]",
               path = "[Path]",
-              ["vim-dadbod-completion"] = "[DB]",
             })[entry.source.name]
             return vim_item
           end,
         },
       })
 
-      -- SQL COMPLETION - Single setup, prioritize DB completion
-      cmp.setup.filetype({ "sql", "sqlite", "psql", "mysql", "plsql" }, {
-        sources = {
-          { name = "vim-dadbod-completion" }, -- DB completion first
-          { name = "buffer" },               -- Buffer second
-          { name = "luasnip" },             -- Snippets last
-        },
-      })
-
-      -- Command line completion
       cmp.setup.cmdline(":", {
         mapping = cmp.mapping.preset.cmdline(),
         sources = cmp.config.sources({

@@ -23,3 +23,23 @@ require "polish"
 
 vim.opt.swapfile = false
 
+vim.api.nvim_create_user_command("DrawLine", function()
+  require("user.xdraw_rs").add_line(10, 10, 100, 100)
+end, {})
+
+vim.api.nvim_create_user_command("UndoDraw", function()
+  require("user.xdraw_rs").undo()
+end, {})
+
+vim.api.nvim_create_user_command("RedoDraw", function()
+  require("user.xdraw_rs").redo()
+end, {})
+
+vim.api.nvim_create_user_command("SaveDraw", function(opts)
+  require("user.xdraw_rs").save(opts.args)
+end, { nargs = 1 })
+
+vim.api.nvim_create_user_command("LoadDraw", function(opts)
+  require("user.xdraw_rs").load(opts.args)
+end, { nargs = 1 })
+
