@@ -301,9 +301,382 @@ return {
         },
 
         -- ======= TERMINAL INTEGRATION =======
+        -- Node menu
+["<leader>mn"] = {
+  function()
+    -- Ensure toggleterm is loaded and available
+    local has_toggleterm, toggleterm = pcall(require, "toggleterm")
+    if not has_toggleterm then
+      vim.notify("toggleterm.nvim is not installed or configured.", vim.log.levels.ERROR)
+      return
+    end
+
+    -- Check if package.json exists
+    local function has_package_json()
+      local file = io.open("package.json", "r")
+      if file then
+        file:close()
+        return true
+      end
+      return false
+    end
+
+    if not has_package_json() then
+      vim.notify("No package.json found in current directory.", vim.log.levels.WARN)
+      return
+    end
+
+    -- Parse package.json to detect project type and available scripts
+    local function get_project_info()
+      local file = io.open("package.json", "r")
+      if not file then return nil end
+      
+      local content = file:read("*a")
+      file:close()
+      
+      local ok, package_data = pcall(vim.fn.json_decode, content)
+      if not ok or not package_data then return nil end
+      
+      return package_data
+    end
+
+    -- Detect package manager
+    local function detect_package_manager()
+      -- Check for lock files to determine package manager
+      local yarn_lock = io.open("yarn.lock", "r")
+      local pnpm_lock = io.open("pnpm-lock.yaml", "r")
+      local bun_lock = io.open("bun.lockb", "r")
+      
+      if bun_lock then
+        bun_lock:close()
+        return "bun"
+      elseif pnpm_lock then
+        pnpm_lock:close()
+        return "pnpm"
+      elseif yarn_lock then
+        yarn_lock:close()
+        return "yarn"
+      else
+        return "npm"
+      end
+    end
+
+    -- Detect project type from dependencies
+    local function detect_project_type(package_data)
+      local deps = {}
+      if package_data.dependencies then
+        for dep, _ in pairs(package_data.dependencies) do
+          deps[dep] = true
+        end
+      end
+      if package_data.devDependencies then
+        for dep, _ in pairs(package_data.devDependencies) do
+          deps[dep] = true
+        end
+      end
+
+      local types = {}
+      
+      -- React
+      if deps.react or deps["@types/react"] then
+        table.insert(types, "React")
+      end
+      
+      -- Next.js
+      if deps.next then
+        table.insert(types, "Next.js")
+      end
+      
+      -- Vue
+      if deps.vue or deps["@vue/cli-service"] then
+        table.insert(types, "Vue.js")
+      end
+      
+      -- Angular
+      if deps["@angular/core"] then
+        table.insert(types, "Angular")
+      end
+      
+      -- Svelte
+      if deps.svelte then
+        table.insert(types, "Svelte")
+      end
+      
+      -- Express
+      if deps.express then
+        table.insert(types, "Express")
+      end
+      
+      -- Fastify
+      if deps.fastify then
+        table.insert(types, "Fastify")
+      end
+      
+      -- Electron
+      if deps.electron then
+        table.insert(types, "Electron")
+      end
+      
+      -- TypeScript
+      if deps.typescript or deps["@types/node"] then
+        table.insert(types, "TypeScript")
+      end
+      
+      -- Testing frameworks
+      if deps.jest then
+        table.insert(types, "Jest")
+      elseif deps.vitest then
+        table.insert(types, "Vitest")
+      elseif deps.mocha then
+        table.insert(types, "Mocha")
+      end
+      
+      -- Bundlers
+      if deps.webpack then
+        table.insert(types, "Webpack")
+      elseif deps.vite then
+        table.insert(types, "Vite")
+      elseif deps.parcel then
+        table.insert(types, "Parcel")
+      end
+
+      return types
+    end
+
+    local package_data = get_project_info()
+    if not package_data then
+      vim.notify("Failed to parse package.json", vim.log.levels.ERROR)
+      return
+    end
+
+    local package_manager = detect_package_manager()
+    local project_types = detect_project_type(package_data)
+    local scripts = package_data.scripts or {}
+
+    -- Build command with package manager
+    local function build_command(cmd)
+      return package_manager .. " " .. cmd
+    end
+
+    -- Build run command based on package manager
+    local function build_run_command(script)
+      if package_manager == "npm" then
+        return "npm run " .. script
+      elseif package_manager == "yarn" then
+        return "yarn run " .. script
+      elseif package_manager == "pnpm" then
+        return "pnpm run " .. script
+      elseif package_manager == "bun" then
+        return "bun run " .. script
+      else
+        return package_manager .. " run " .. script
+      end
+    end
+
+    -- Enhanced command list
+    local commands = {
+      -- Package Management
+      { "📦 Install Dependencies", build_command("install"), "pkg" },
+      { "🔄 Update Dependencies", build_command("update"), "pkg" },
+    }
+
+    -- Add package manager specific commands
+    if package_manager == "npm" then
+      table.insert(commands, { "📋 List Dependencies", "npm list", "pkg" })
+      table.insert(commands, { "🔍 Outdated Packages", "npm outdated", "pkg" })
+    elseif package_manager == "yarn" then
+      table.insert(commands, { "📋 List Dependencies", "yarn list", "pkg" })
+      table.insert(commands, { "🔍 Outdated Packages", "yarn outdated", "pkg" })
+      table.insert(commands, { "🧹 Clean Cache", "yarn cache clean", "pkg" })
+    elseif package_manager == "pnpm" then
+      table.insert(commands, { "📋 List Dependencies", "pnpm list", "pkg" })
+      table.insert(commands, { "🔍 Outdated Packages", "pnpm outdated", "pkg" })
+      table.insert(commands, { "🧹 Store Prune", "pnpm store prune", "pkg" })
+    elseif package_manager == "bun" then
+      table.insert(commands, { "📋 List Dependencies", "bun pm ls", "pkg" })
+      table.insert(commands, { "🧹 Clean Cache", "bun pm cache rm", "pkg" })
+    end
+
+    -- Common development commands
+    local common_scripts = {
+      { "dev", "🚀 Development Server", "dev" },
+      { "start", "▶️  Start", "dev" },
+      { "build", "🔨 Build", "build" },
+      { "test", "🧪 Test", "test" },
+      { "test:watch", "👁️  Test Watch", "test" },
+      { "test:coverage", "📊 Test Coverage", "test" },
+      { "lint", "📎 Lint", "quality" },
+      { "lint:fix", "🔧 Lint Fix", "quality" },
+      { "format", "🎨 Format", "quality" },
+      { "type-check", "🔍 Type Check", "quality" },
+      { "preview", "👀 Preview", "dev" },
+      { "serve", "🌐 Serve", "dev" },
+    }
+
+    -- Get all scripts from package.json and categorize them
+    local function categorize_script(script_name, script_command)
+      -- Check script name patterns
+      if script_name:match("^dev") or script_name == "start" or script_name:match("serve") then
+        return "dev", "🚀"
+      elseif script_name:match("build") or script_name:match("compile") then
+        return "build", "🔨"
+      elseif script_name:match("test") then
+        return "test", "🧪"
+      elseif script_name:match("lint") or script_name:match("format") or script_name:match("prettier") or script_name:match("eslint") then
+        return "quality", "✨"
+      elseif script_name:match("type") and script_name:match("check") then
+        return "quality", "🔍"
+      elseif script_name:match("preview") or script_name:match("storybook") then
+        return "preview", "👀"
+      elseif script_name:match("deploy") or script_name:match("publish") then
+        return "deploy", "🚀"
+      else
+        return "script", "📜"
+      end
+    end
+
+    -- Add all scripts from package.json
+    local script_names = {}
+    for script_name, _ in pairs(scripts) do
+      table.insert(script_names, script_name)
+    end
+    table.sort(script_names)
+
+    for _, script_name in ipairs(script_names) do
+      local script_command = scripts[script_name]
+      local category, icon = categorize_script(script_name, script_command)
+      
+      -- Create display name with script preview
+      local display_name = string.format("%s %s", icon, script_name)
+      if script_command and #script_command > 0 then
+        local preview = script_command
+        if #preview > 50 then
+          preview = preview:sub(1, 47) .. "..."
+        end
+        display_name = display_name .. " → " .. preview
+      end
+      
+      table.insert(commands, { display_name, build_run_command(script_name), category })
+    end
+
+    -- TypeScript specific commands
+    if package_data.devDependencies and package_data.devDependencies.typescript then
+      table.insert(commands, { "🔍 TypeScript Check", "npx tsc --noEmit", "quality" })
+      table.insert(commands, { "👁️  TypeScript Watch", "npx tsc --watch", "quality" })
+    end
+
+    -- Framework specific commands
+    for _, project_type in ipairs(project_types) do
+      if project_type == "Next.js" then
+        table.insert(commands, { "🚀 Next.js Analyze", build_run_command("analyze"), "framework" })
+      elseif project_type == "React" then
+        table.insert(commands, { "⚛️  React DevTools", "echo 'Install React DevTools browser extension'", "framework" })
+      elseif project_type == "Vue.js" then
+        table.insert(commands, { "💚 Vue DevTools", "echo 'Install Vue DevTools browser extension'", "framework" })
+      end
+    end
+
+    -- Development utilities
+    table.insert(commands, { "🔍 Node Version", "node --version", "utility" })
+    table.insert(commands, { "📋 NPM Version", package_manager .. " --version", "utility" })
+    table.insert(commands, { "📊 Bundle Analyzer", "npx webpack-bundle-analyzer", "utility" })
+    table.insert(commands, { "🔍 Dependency Tree", build_command("ls"), "utility" })
+
+    -- Custom command input option
+    table.insert(commands, { "✏️  Custom Command...", "custom", "custom" })
+
+    local project_info = ""
+    if #project_types > 0 then
+      project_info = " (" .. table.concat(project_types, ", ") .. ")"
+    end
+
+    vim.ui.select(commands, {
+      prompt = "📦 Select " .. package_manager .. " command" .. project_info .. ":",
+      format_item = function(item)
+        local category_icons = {
+          pkg = "📦 ",
+          dev = "🚀 ",
+          build = "🔨 ",
+          test = "🧪 ",
+          quality = "✨ ",
+          preview = "👀 ",
+          deploy = "🚀 ",
+          script = "📜 ",
+          framework = "🎯 ",
+          utility = "🛠️  ",
+          custom = "✏️ ",
+        }
+        -- Don't add icon if item[1] already starts with an emoji
+        if item[1]:match("^[%z\1-\127]") then
+          return item[1]  -- Item already has icon
+        else
+          local icon = category_icons[item[3]] or "• "
+          return icon .. item[1]
+        end
+      end,
+    }, function(choice)
+      if choice then
+        local command_to_run = choice[2]
+
+        -- Handle custom command
+        if command_to_run == "custom" then
+          vim.ui.input({
+            prompt = "Enter custom " .. package_manager .. " command: ",
+            default = package_manager .. " ",
+          }, function(custom_cmd)
+            if custom_cmd and custom_cmd ~= "" then
+              command_to_run = custom_cmd
+            else
+              return
+            end
+
+            -- Execute the custom command
+            local Terminal = require("toggleterm.terminal").Terminal
+
+            local term_opts = {
+              cmd = custom_cmd,
+              direction = "tab",
+              close_on_exit = false,
+              size = 15,
+              on_open = function(term) vim.cmd("startinsert!") end,
+            }
+
+            -- Show notification
+            vim.notify("Running: " .. custom_cmd, vim.log.levels.INFO)
+
+            -- Create and toggle the terminal
+            local terminal = Terminal:new(term_opts)
+            terminal:toggle()
+          end)
+        else
+          -- Execute the selected command
+          local Terminal = require("toggleterm.terminal").Terminal
+
+          local term_opts = {
+            cmd = command_to_run,
+            direction = "tab",
+            close_on_exit = false,
+            size = 15,
+            on_open = function(term) vim.cmd("startinsert!") end,
+          }
+
+          -- Show notification with command being executed
+          vim.notify("Running: " .. command_to_run, vim.log.levels.INFO)
+
+          -- Create and toggle the terminal
+          local terminal = Terminal:new(term_opts)
+          terminal:toggle()
+        end
+      end
+    end)
+  end,
+  desc = "Node.js/JavaScript command menu",
+},
+
+
+
         -- Interactive cargo command menu
-        -- Enhanced interactive cargo command menu with all targets and popup terminal
-        ["<leader>mc"] = {
+["<leader>mc"] = {
           function()
             -- Ensure toggleterm is loaded and available
             local has_toggleterm, toggleterm = pcall(require, "toggleterm")
@@ -311,13 +684,31 @@ return {
               vim.notify("toggleterm.nvim is not installed or configured.", vim.log.levels.ERROR)
               return
             end
-            local workspace_info = workspace_utils.get_workspace_info()
-            local workspace_suffix = workspace_info.is_workspace and " --workspace" or ""
+
+            -- Better workspace detection
+            local function is_workspace()
+              local handle = io.popen("cargo metadata --format-version 1 --no-deps 2>/dev/null")
+              if not handle then return false end
+              
+              local output = handle:read("*a")
+              handle:close()
+              
+              if not output or output == "" then return false end
+              
+              -- Parse JSON to check if we have multiple packages
+              local ok, result = pcall(vim.fn.json_decode, output)
+              if not ok or not result or not result.packages then return false end
+              
+              return #result.packages > 1
+            end
+
+            local is_ws = is_workspace()
+            local workspace_flag = is_ws and " --workspace" or ""
 
             -- Get available examples
             local function get_cargo_examples()
               local examples = {}
-              local handle = io.popen "ls examples/*.rs 2>/dev/null | xargs -n1 basename -s .rs 2>/dev/null"
+              local handle = io.popen("ls examples/*.rs 2>/dev/null | xargs -n1 basename -s .rs 2>/dev/null")
               if handle then
                 for line in handle:lines() do
                   if line and line ~= "" then table.insert(examples, line) end
@@ -330,8 +721,7 @@ return {
             -- Get available binaries (only from current package)
             local function get_cargo_binaries()
               local binaries = {}
-              local handle =
-                io.popen "cargo metadata --format-version 1 --no-deps 2>/dev/null | jq -r '.packages[].targets[] | select(.kind[] == \"bin\") | .name' 2>/dev/null"
+              local handle = io.popen("cargo metadata --format-version 1 --no-deps 2>/dev/null | jq -r '.packages[].targets[] | select(.kind[] == \"bin\") | .name' 2>/dev/null")
               if handle then
                 for line in handle:lines() do
                   if line and line ~= "" then table.insert(binaries, line) end
@@ -344,56 +734,73 @@ return {
             local examples = get_cargo_examples()
             local binaries = get_cargo_binaries()
 
-            -- Enhanced command list with categories (removed dependency management)
+            -- Build commands with proper workspace handling
+            local function build_command(base_cmd, workspace_flag_type)
+              if not is_ws then
+                return base_cmd
+              end
+              
+              if workspace_flag_type == "workspace" then
+                return base_cmd .. " --workspace"
+              elseif workspace_flag_type == "all" then
+                return base_cmd .. " --all"
+              else
+                return base_cmd
+              end
+            end
+
+            -- Enhanced command list with proper workspace handling
             local commands = {
               -- Basic Commands
-              { "🔍 Check" .. workspace_suffix, "cargo check" .. workspace_suffix, "basic" },
-              { "🔨 Build" .. workspace_suffix, "cargo build" .. workspace_suffix, "basic" },
-              { "🔨 Build Release" .. workspace_suffix, "cargo build --release" .. workspace_suffix, "basic" },
-              { "🧪 Test" .. workspace_suffix, "cargo test" .. workspace_suffix, "basic" },
-              { "🧪 Test Release", "cargo test --release" .. workspace_suffix, "basic" },
-              { "📎 Clippy" .. workspace_suffix, "cargo clippy" .. workspace_suffix .. " -- -D warnings", "basic" },
-              { "🧹 Clean" .. workspace_suffix, "cargo clean" .. workspace_suffix, "basic" },
+              { "🔍 Check" .. (is_ws and " (workspace)" or ""), build_command("cargo check", "workspace"), "basic" },
+              { "🔨 Build" .. (is_ws and " (workspace)" or ""), build_command("cargo build", "workspace"), "basic" },
+              { "🔨 Build Release" .. (is_ws and " (workspace)" or ""), build_command("cargo build --release", "workspace"), "basic" },
+              { "🧪 Test" .. (is_ws and " (workspace)" or ""), build_command("cargo test", "workspace"), "basic" },
+              { "🧪 Test Release" .. (is_ws and " (workspace)" or ""), build_command("cargo test --release", "workspace"), "basic" },
+              { "📎 Clippy" .. (is_ws and " (workspace)" or ""), build_command("cargo clippy", "workspace") .. " -- -D warnings", "basic" },
+              { "🧹 Clean" .. (is_ws and " (workspace)" or ""), build_command("cargo clean", "workspace"), "basic" },
 
               -- Advanced Build Options
-              { "🔍 Check Lib Only", "cargo check --lib" .. workspace_suffix, "advanced" },
-              { "🔨 Build Lib Only", "cargo build --lib" .. workspace_suffix, "advanced" },
+              { "🔍 Check Lib Only", build_command("cargo check --lib", "workspace"), "advanced" },
+              { "🔨 Build Lib Only", build_command("cargo build --lib", "workspace"), "advanced" },
 
               -- Documentation and Formatting
-              { "📚 Generate Docs", "cargo doc --open" .. workspace_suffix, "docs" },
-              { "📚 Generate Docs (No Deps)", "cargo doc --no-deps --open" .. workspace_suffix, "docs" },
-              { "🎨 Format Code", "cargo fmt" .. workspace_suffix, "docs" },
-              { "🎨 Format Check", "cargo fmt --check" .. workspace_suffix, "docs" },
+              { "📚 Generate Docs", build_command("cargo doc --open", "workspace"), "docs" },
+              { "📚 Generate Docs (No Deps)", build_command("cargo doc --no-deps --open", "workspace"), "docs" },
+              { "🎨 Format Code", build_command("cargo fmt", "all"), "docs" },
+              { "🎨 Format Check", build_command("cargo fmt --check", "all"), "docs" },
 
               -- Benchmarks and Performance
-              { "⚡ Bench" .. workspace_suffix, "cargo bench" .. workspace_suffix, "perf" },
+              { "⚡ Bench", build_command("cargo bench", "workspace"), "perf" },
 
-              -- Utility Commands
+              -- Utility Commands - these don't typically support workspace flags
               { "🔍 Expand Macros", "cargo expand", "utility" },
               { "📋 Show Config", "cargo config get", "utility" },
 
-              -- Publishing
+              -- Publishing (usually don't need workspace flag)
               { "📦 Package", "cargo package", "publish" },
               { "🔍 Package List", "cargo package --list", "publish" },
               { "📤 Publish Dry Run", "cargo publish --dry-run", "publish" },
             }
 
+            -- Add workspace-specific commands if in workspace
+            if is_ws then
+              table.insert(commands, { "🔍 Check All Packages", "cargo check --workspace", "workspace" })
+              table.insert(commands, { "🧪 Test All Packages", "cargo test --workspace", "workspace" })
+              table.insert(commands, { "📎 Clippy All Packages", "cargo clippy --workspace -- -D warnings", "workspace" })
+              table.insert(commands, { "🎨 Format All Packages", "cargo fmt --all", "workspace" })
+            end
+
             -- Add example commands
             for _, example in ipairs(examples) do
               table.insert(commands, { "📖 Run Example: " .. example, "cargo run --example " .. example, "examples" })
-              table.insert(
-                commands,
-                { "🔨 Build Example: " .. example, "cargo build --example " .. example, "examples" }
-              )
+              table.insert(commands, { "🔨 Build Example: " .. example, "cargo build --example " .. example, "examples" })
             end
 
             -- Add binary run commands
             for _, binary in ipairs(binaries) do
               table.insert(commands, { "▶️  Run Binary: " .. binary, "cargo run --bin " .. binary, "binaries" })
-              table.insert(
-                commands,
-                { "▶️  Run Binary (Release): " .. binary, "cargo run --release --bin " .. binary, "binaries" }
-              )
+              table.insert(commands, { "▶️  Run Binary (Release): " .. binary, "cargo run --release --bin " .. binary, "binaries" })
             end
 
             -- Custom command input option
@@ -401,7 +808,7 @@ return {
 
             -- Terminal direction is fixed to horizontal
             vim.ui.select(commands, {
-              prompt = "🦀 Select cargo command:",
+              prompt = "🦀 Select cargo command" .. (is_ws and " (workspace detected)" or "") .. ":",
               format_item = function(item)
                 local category_icons = {
                   basic = "⚙️ ",
@@ -413,6 +820,7 @@ return {
                   examples = "📖 ",
                   binaries = "▶️ ",
                   custom = "✏️ ",
+                  workspace = "🏢 ",
                 }
                 local icon = category_icons[item[3]] or "• "
                 return icon .. item[1]
@@ -441,7 +849,7 @@ return {
                       direction = "tab",
                       close_on_exit = false,
                       size = 15,
-                      on_open = function(term) vim.cmd "startinsert!" end,
+                      on_open = function(term) vim.cmd("startinsert!") end,
                     }
 
                     -- Show notification
@@ -460,7 +868,7 @@ return {
                     direction = "tab",
                     close_on_exit = false,
                     size = 15,
-                    on_open = function(term) vim.cmd "startinsert!" end,
+                    on_open = function(term) vim.cmd("startinsert!") end,
                   }
 
                   -- Show notification with command being executed
@@ -474,7 +882,7 @@ return {
             end)
           end,
           desc = "Cargo command menu",
-        }, -- Smart workspace file finder
+        },
         ["<leader>fwf"] = {
           function()
             local workspace_utils = require "workspace_utils"

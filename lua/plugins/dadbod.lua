@@ -75,12 +75,6 @@ return {
           Indexes = 'PRAGMA index_list(`{table}`);',
         },
       }
-
-      -- == Core Key Mappings ==
-      vim.keymap.set('n', '<leader>db', '<cmd>DBUIToggle<cr>', { desc = 'Toggle DBUI' })
-      vim.keymap.set('n', '<leader>df', '<cmd>DBUIFindBuffer<cr>', { desc = 'Find DB buffer' })
-      vim.keymap.set('n', '<leader>dr', '<cmd>DBUIRenameBuffer<cr>', { desc = 'Rename DB buffer' })
-      vim.keymap.set('n', '<leader>dq', '<cmd>DBUILastQueryInfo<cr>', { desc = 'Last query info' })
     end,
     -- config is run after the plugin loads, for autocommands and more complex logic
     config = function()
@@ -168,28 +162,77 @@ table.insert(lines, "  ```")
 
             -- 2. Check if it's a table name (from the second file's logic)
             -- This regex looks for patterns like FROM table, JOIN table, UPDATE table, etc.
-            if word:match('^[a-zA-Z_][a-zA-Z0-9_]*$') and line:match('%f[%s,]' .. word .. '%f[%s;%)]') then
-              vim.ui.select({ '📋 Schema', '📊 Sample (10)', '🔢 Count', '🔗 Foreign Keys', '📈 Indexes', '📏 Size' }, {
-                prompt = '🐘 Table Actions for: ' .. word,
-              }, function(choice)
-                if not choice then return end
-                local db_type = vim.b.db_ui_database_type or 'postgresql'
-                local helper = vim.g.db_ui_table_helpers[db_type]
-                if not helper then vim.notify('No helpers for db type: ' .. db_type, vim.log.levels.WARN); return end
+            
+-- 2. Check if it's a CTE or a table
+if word:match('^[a-zA-Z_][a-zA-Z0-9_]*$') then
+  -- First, try to detect a CTE in the buffer
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local cte_pattern = 'WITH%s+(.-)%s+AS%s*%('
+  local cte_blocks = {}
 
-                local action_map = {
-                  ['📋 Schema'] = helper.Schema,
-                  ['📊 Sample (10)'] = helper.Sample,
-                  ['🔢 Count'] = helper.Count,
-                  ['🔗 Foreign Keys'] = helper.FK,
-                  ['📈 Indexes'] = helper.Indexes,
-                  ['📏 Size'] = helper.Size,
-                }
-                if action_map[choice] then
-                  vim.cmd('DB ' .. action_map[choice]:gsub('{table}', word))
-                end
-              end)
-              return
+  for _, line in ipairs(lines) do
+    local match = line:match(cte_pattern)
+    if match then
+      for cte in match:gmatch('[^,%s]+') do
+        table.insert(cte_blocks, cte)
+      end
+    end
+  end
+
+  for _, cte in ipairs(cte_blocks) do
+    if cte == word then
+      -- Find full CTE block
+      local start_idx = nil
+      local end_idx = nil
+      for i, line in ipairs(lines) do
+        if line:match('WITH.*' .. word .. '%s+AS%s*%(') then
+          start_idx = i
+        elseif start_idx and line:match('%)') then
+          end_idx = i
+          break
+        end
+      end
+
+      if start_idx and end_idx then
+        local cte_lines = {}
+        for i = start_idx, end_idx do
+          table.insert(cte_lines, lines[i])
+        end
+        show_help_window(word .. ' (CTE)', cte_lines)
+        return
+      end
+    end
+  end
+
+  -- If not a CTE, fallback to table helper detection
+  if line:match('%f[%w_]' .. word .. '%f[^%w_]') then
+    vim.ui.select({ '📋 Schema', '📊 Sample (10)', '🔢 Count', '🔗 Foreign Keys', '📈 Indexes', '📏 Size' }, {
+      prompt = '🐘 Table Actions for: ' .. word,
+    }, function(choice)
+      if not choice then return end
+      local db_type = vim.b.db_ui_database_type or 'postgresql'
+      local helper = vim.g.db_ui_table_helpers[db_type]
+      if not helper then
+        vim.notify('No helpers for db type: ' .. db_type, vim.log.levels.WARN)
+        return
+      end
+
+      local action_map = {
+        ['📋 Schema'] = helper.Schema,
+        ['📊 Sample (10)'] = helper.Sample,
+        ['🔢 Count'] = helper.Count,
+        ['🔗 Foreign Keys'] = helper.FK,
+        ['📈 Indexes'] = helper.Indexes,
+        ['📏 Size'] = helper.Size,
+      }
+      if action_map[choice] then
+        vim.cmd('DB ' .. action_map[choice]:gsub('{table}', word))
+      end
+    end)
+    return
+  end
+
+             
             end
 
             -- 3. Fallback to LSP hover
